@@ -1,4 +1,4 @@
-name: KRATT core tests
+name: KRATT PRIME CI
 
 on:
   push:
@@ -8,13 +8,32 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   contract-tests:
+    name: KRATT core contract tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Run KRATT core tests
+      - name: Run contract tests
         run: node --test packages/kratt-core/test/*.test.mjs
+  typecheck-build:
+    name: Existing app typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
