@@ -1,5 +1,5 @@
 {
-  "name": "aura",
+  "name": "trinitywayve-aura",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
     "preview": "vite preview",
     "pack": "node scripts/pack-deploy.mjs",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit"
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
+    "test": "node --test packages/kratt-core/test/*.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
