@@ -10,6 +10,7 @@ primary line is `telegram-main`; repository default branch `main` remains untouc
 - Telegram update envelope validation.
 - Webhook secret verification before JSON parsing.
 - Framework-neutral webhook handler with durable inbox claim/complete/fail contract.
+- KRATT policy-gated dispatcher that binds Telegram event IDs to canonical task envelopes, requires trusted policy decisions, and records decision/execution phases through an idempotent audit adapter.
 - PostgreSQL inbox adapter with unique event identity, retry backoff, stale-processing lease recovery and dead-letter state.
 - Telegram Mini App `initData` HMAC-SHA256 validation, auth-date freshness, duplicate parameter rejection and timing-safe hash comparison.
 - Minimal Bot API client with runtime token injection, timeout and redacted errors.
