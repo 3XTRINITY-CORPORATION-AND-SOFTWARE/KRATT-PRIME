@@ -141,3 +141,25 @@ test("audit failure blocks execution before side effects", async () => {
   );
   assert.equal(executions.length, 0);
 });
+
+test("webhook handler and KRATT dispatcher compose into one authorized event path", async () => {
+  const { dispatcher, executions } = dependencies();
+  let completed = false;
+  const { createTelegramWebhookHandler } = await import("../src/adapters/webhook-handler.mjs");
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: {
+      claim: async ({ eventId }) => eventId === "42",
+      complete: async ({ eventId }) => { completed = eventId === "42"; },
+      fail: async () => {}
+    },
+    dispatch: dispatcher
+  });
+  const response = await handler({
+    headers: { "x-telegram-bot-api-secret-token": "a-webhook-secret-value" },
+    rawBody: JSON.stringify(update)
+  });
+  assert.equal(response.status, 200);
+  assert.equal(completed, true);
+  assert.equal(executions.length, 1);
+});
