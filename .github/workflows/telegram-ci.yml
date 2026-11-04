@@ -11,6 +11,7 @@ on:
     paths:
       - "programs/telegram/**"
       - ".github/workflows/telegram-ci.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
