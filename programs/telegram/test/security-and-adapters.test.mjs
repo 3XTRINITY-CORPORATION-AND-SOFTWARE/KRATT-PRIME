@@ -74,7 +74,7 @@ test("marks a claimed webhook event retryable when dispatch fails", async () => 
     rawBody: JSON.stringify({ update_id: 78, message: { message_id: 2 } })
   });
   assert.equal(response.status, 503);
-  assert.deepEqual(failed, [{ provider: "telegram", eventId: "78", retryable: true }]);
+  assert.deepEqual(failed, [{ provider: "telegram", eventId: "78", leaseToken: "lease-78", retryable: true }]);
 });
 
 test("validates Stars payment amount, currency and charge identity", () => {
