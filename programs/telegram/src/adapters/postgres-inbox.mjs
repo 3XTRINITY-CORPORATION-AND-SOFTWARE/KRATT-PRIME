@@ -44,8 +44,9 @@ export function createPostgresTelegramInbox(pool, { maxAttempts = 8, leaseSecond
         `UPDATE telegram_event_inbox
            SET status = 'PROCESSED', processed_at = now(), locked_at = NULL,
                lease_token = NULL, updated_at = now()
-         WHERE provider = $1 AND event_id = $2 AND status = 'PROCESSING' AND lease_token = $3`,
-        [provider, eventId, leaseToken]
+         WHERE provider = $1 AND event_id = $2 AND status = 'PROCESSING' AND lease_token = $3
+           AND locked_at >= now() - ($4::int * interval '1 second')`,
+        [provider, eventId, leaseToken, leaseSeconds]
       );
       if (result.rowCount !== 1) throw new Error("INBOX_COMPLETE_LEASE_CONFLICT");
     },
@@ -62,8 +63,9 @@ export function createPostgresTelegramInbox(pool, { maxAttempts = 8, leaseSecond
                  ELSE now() + (LEAST(3600, power(2, LEAST(attempt_count, 11))::int) * interval '1 second')
                END,
                updated_at = now()
-         WHERE provider = $1 AND event_id = $2 AND status = 'PROCESSING' AND lease_token = $3`,
-        [provider, eventId, leaseToken, retryable, maxAttempts]
+         WHERE provider = $1 AND event_id = $2 AND status = 'PROCESSING' AND lease_token = $3
+           AND locked_at >= now() - ($6::int * interval '1 second')`,
+        [provider, eventId, leaseToken, retryable, maxAttempts, leaseSeconds]
       );
       if (result.rowCount !== 1) throw new Error("INBOX_FAIL_LEASE_CONFLICT");
     }
