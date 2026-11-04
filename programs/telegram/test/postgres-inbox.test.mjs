@@ -33,3 +33,16 @@ test("PostgreSQL inbox validates adapter configuration and lease tokens", async 
   await assert.rejects(inbox.complete({ provider: "telegram", eventId: "42" }), /lease token/);
   await assert.rejects(inbox.fail({ provider: "telegram", eventId: "42" }), /lease token/);
 });
+
+test("an expired or superseded worker cannot complete or fail a claimed event", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const inbox = createPostgresTelegramInbox(pool, { leaseSeconds: 60 });
+  await assert.rejects(
+    inbox.complete({ provider: "telegram", eventId: "42", leaseToken: "old-lease" }),
+    /INBOX_COMPLETE_LEASE_CONFLICT/
+  );
+  await assert.rejects(
+    inbox.fail({ provider: "telegram", eventId: "42", leaseToken: "old-lease" }),
+    /INBOX_FAIL_LEASE_CONFLICT/
+  );
+});
