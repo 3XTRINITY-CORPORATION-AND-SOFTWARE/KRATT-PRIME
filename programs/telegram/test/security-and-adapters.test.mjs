@@ -133,3 +133,21 @@ test("Mini App bot HMAC validation accepts the optional third-party signature fi
   assert.equal(result.ok, true);
   assert.equal(result.data.signature, "third-party-ed25519-signature");
 });
+
+test("webhook rejects ambiguous duplicate secret headers", async () => {
+  let dispatched = 0;
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    dispatch: async () => { dispatched += 1; }
+  });
+  const response = await handler({
+    headers: {
+      "x-telegram-bot-api-secret-token": "a-webhook-secret-value",
+      "X-Telegram-Bot-Api-Secret-Token": "attacker-value"
+    },
+    rawBody: JSON.stringify({ update_id: 80, message: { message_id: 4 } })
+  });
+  assert.equal(response.status, 401);
+  assert.equal(dispatched, 0);
+});
