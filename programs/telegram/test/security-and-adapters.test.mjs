@@ -43,8 +43,8 @@ test("webhook authenticates before parsing and atomically deduplicates", async (
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
     inbox: {
-      claim: async ({ eventId }) => { if (seen.has(eventId)) return false; seen.add(eventId); return true; },
-      complete: async ({ eventId }) => completed.add(eventId),
+      claim: async ({ eventId }) => { if (seen.has(eventId)) return null; seen.add(eventId); return { claimed:true, leaseToken:`lease-${eventId}` }; },
+      complete: async ({ eventId, leaseToken }) => { assert.equal(leaseToken, `lease-${eventId}`); completed.add(eventId); },
       fail: async entry => failed.push(entry)
     },
     dispatch: async event => dispatched.push(event)
@@ -63,7 +63,7 @@ test("marks a claimed webhook event retryable when dispatch fails", async () => 
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
     inbox: {
-      claim: async () => true,
+      claim: async () => ({ claimed:true, leaseToken:"lease-78" }),
       complete: async () => {},
       fail: async entry => failed.push(entry)
     },
@@ -104,13 +104,13 @@ test("Mini App initData uses deterministic case-sensitive key ordering", () => {
 test("webhook accepts case-insensitive secret header and rejects invalid body limits", async () => {
   assert.throws(() => createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
-    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    inbox: { claim: async () => ({ claimed:true, leaseToken:"lease-79" }), complete: async () => {}, fail: async () => {} },
     dispatch: async () => {},
     maxBodyBytes: 0
   }), /maxBodyBytes/);
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
-    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    inbox: { claim: async () => ({ claimed:true, leaseToken:"lease-80" }), complete: async () => {}, fail: async () => {} },
     dispatch: async () => {}
   });
   const response = await handler({
