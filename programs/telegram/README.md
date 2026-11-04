@@ -1,55 +1,51 @@
 # KRATT PRIME — Telegram Program
 
-Status: **foundation / implementation not yet connected to Telegram runtime**
+Status: **implemented adapter foundation; production integration not enabled**
 
-This directory is the independently versioned Telegram program inside KRATT PRIME.
-Its branch-level primary development line is `telegram-main`; the repository default
-branch remains `main` and is not modified by work in this program.
+This is the independently developed Telegram program inside KRATT PRIME. Its branch-level
+primary line is `telegram-main`; repository default branch `main` remains untouched.
 
-## Scope
+## Implemented
 
-- Telegram Bot API gateway and webhook ingress
-- webhook secret verification and replay/idempotency protection
-- Telegram Mini App authentication validation
-- Telegram Stars payment event adapter
-- subscription and entitlement lifecycle
-- affiliate accounting adapter (separate from native Telegram subscriptions)
-- KRATT PRIME policy, agent, Saga, memory and evidence adapters
+- Telegram update envelope validation.
+- Webhook secret verification before JSON parsing.
+- Framework-neutral webhook handler with durable inbox claim/complete/fail contract.
+- PostgreSQL inbox adapter with unique event identity, retry backoff, stale-processing lease recovery and dead-letter state.
+- Telegram Mini App `initData` HMAC-SHA256 validation, auth-date freshness, duplicate parameter rejection and timing-safe hash comparison.
+- Minimal Bot API client with runtime token injection, timeout and redacted errors.
+- Telegram Stars successful-payment validation (XTR, amount, invoice payload and charge ID).
+- Conservative payment state transitions.
+- Node.js test suite and branch-scoped GitHub Actions workflow.
 
-## Safety invariants
+## Package
+
+Node.js >=22. Run tests from repository root:
+
+```bash
+node --test programs/telegram/test/*.test.mjs
+```
+
+Run the PostgreSQL migration before constructing `createPostgresTelegramInbox(pool)`:
+
+`migrations/001_telegram_inbox.sql`
+
+## Security invariants
 
 1. Never commit bot tokens, webhook secrets, signing keys, payment credentials or user data.
-2. Verify Telegram webhook `X-Telegram-Bot-Api-Secret-Token` before parsing business events.
-3. Validate Mini App `initData` on the server; never trust client-provided identity fields.
-4. A payment is not successful until a verified `successful_payment` event is processed.
-5. Process updates idempotently; persist provider event identifiers and durable state transitions.
-6. Agents may inspect, classify and prepare actions; refunds, financial postings and privilege changes require policy authorization and explicit approval.
-7. Keep Telegram Stars (XTR), fiat balances, affiliate accruals and payout liabilities in separate accounting dimensions.
-8. No production webhook, payment flow, bot token or deployment is enabled by this scaffold.
+2. Verify `X-Telegram-Bot-Api-Secret-Token` before parsing webhook business events.
+3. Validate raw Mini App `initData` on the server; never trust `initDataUnsafe`.
+4. Payment intent alone never activates an entitlement.
+5. Only a verified `successful_payment` event matching XTR amount and invoice payload is eligible for entitlement activation.
+6. Use durable unique provider/event IDs; do not use process memory as the production idempotency store.
+7. Keep XTR, fiat balances, affiliate accruals and payout liabilities separate.
+8. Restricted financial and privilege actions must pass KRATT policy and explicit approval.
+9. No production webhook, payment, refund or deployment is enabled by this package.
 
-## Planned layout
+## Not yet production-complete
 
-```
-programs/telegram/
-  README.md
-  package.json
-  src/
-    index.mjs
-    contracts/
-      telegram-update.mjs
-    security/
-      webhook-secret.mjs
-      mini-app-init-data.mjs
-    adapters/
-      bot-api.mjs
-      stars-payments.mjs
-    domain/
-      payment-state.mjs
-      entitlement-state.mjs
-  test/
-    contracts.test.mjs
-```
-
-Only files explicitly marked as implemented should be treated as runtime functionality.
-The initial commit establishes package boundaries and validation contracts; it does not
-claim a live Telegram connection.
+- PostgreSQL integration tests against a real database and operational monitoring.
+- Transactional outbox and worker for downstream KRATT delivery.
+- Mini App session issuance/rotation after initData validation.
+- Bot API rate limiting and method-aware retry policy.
+- Stars invoice creation, pre-checkout handler, refund flow and durable ledger posting.
+- KRATT Policy/Saga/evidence adapters and end-to-end acceptance tests.
