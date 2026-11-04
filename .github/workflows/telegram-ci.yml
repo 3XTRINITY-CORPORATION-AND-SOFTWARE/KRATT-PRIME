@@ -10,6 +10,7 @@ on:
       - "packages/kratt-core/**"
       - ".github/workflows/telegram-ci.yml"
   pull_request:
+    branches: [telegram-main]
     paths:
       - "programs/telegram/**"
       - "packages/kratt-core/**"
