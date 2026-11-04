@@ -45,7 +45,11 @@ function makeContext(action, eventId, sideEffectClass = "READ_ONLY") {
       target_types: ["telegram_update"],
       side_effect_class: sideEffectClass,
       ...(sideEffectClass === "EXTERNAL_WRITE"
-        ? { approval_required: true, approval_authority: "telegram.approve" }
+        ? {
+            approval_required: true,
+            approval_authority: "telegram.approve",
+            required_claims: ["INTEGRATION_VERIFIED"]
+          }
         : {})
     }],
     evaluated_at: at
