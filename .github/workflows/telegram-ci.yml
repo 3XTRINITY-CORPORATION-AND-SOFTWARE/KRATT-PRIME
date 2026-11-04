@@ -1,0 +1,28 @@
+name: Telegram Program CI
+
+on:
+  push:
+    branches: [telegram-main]
+    paths:
+      - "programs/telegram/**"
+      - ".github/workflows/telegram-ci.yml"
+  pull_request:
+    branches: [telegram-main]
+    paths:
+      - "programs/telegram/**"
+      - ".github/workflows/telegram-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  telegram-tests:
+    name: Telegram contracts and security tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Telegram program tests
+        run: node --test programs/telegram/test/*.test.mjs
