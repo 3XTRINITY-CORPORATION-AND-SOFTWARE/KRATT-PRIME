@@ -38,14 +38,18 @@ export function createTelegramWebhookHandler({ secret, inbox, dispatch, maxBodyB
     try { claimed = await inbox.claim(event); }
     catch { return { status: 503, body: { ok: false, error: "WEBHOOK_INBOX_UNAVAILABLE" } }; }
     if (!claimed) return { status: 200, body: { ok: true, duplicate: true } };
+    const leaseToken = claimed.leaseToken;
+    if (typeof leaseToken !== "string" || !leaseToken) {
+      return { status: 503, body: { ok: false, error: "WEBHOOK_INBOX_LEASE_INVALID" } };
+    }
 
     try {
       await dispatch({ update, eventId: event.eventId, eventType: validation.eventType });
-      await inbox.complete({ provider: "telegram", eventId: event.eventId });
+      await inbox.complete({ provider: "telegram", eventId: event.eventId, leaseToken });
       return { status: 200, body: { ok: true, duplicate: false } };
     } catch {
       try {
-        await inbox.fail({ provider: "telegram", eventId: event.eventId, retryable: true });
+        await inbox.fail({ provider: "telegram", eventId: event.eventId, leaseToken, retryable: true });
       } catch {
         return { status: 503, body: { ok: false, error: "WEBHOOK_RECOVERY_STATE_UNAVAILABLE" } };
       }
