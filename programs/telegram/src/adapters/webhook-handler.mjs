@@ -14,8 +14,9 @@ export function createTelegramWebhookHandler({ secret, inbox, dispatch, maxBodyB
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1) throw new TypeError("maxBodyBytes must be a positive safe integer");
 
   return async function handleWebhook({ headers = {}, rawBody }) {
-    const suppliedSecret = Object.entries(headers ?? {})
-      .find(([name]) => name.toLowerCase() === "x-telegram-bot-api-secret-token")?.[1];
+    const secretHeaders = Object.entries(headers ?? {})
+      .filter(([name]) => name.toLowerCase() === "x-telegram-bot-api-secret-token");
+    const suppliedSecret = secretHeaders.length === 1 ? secretHeaders[0][1] : undefined;
     if (!verifyWebhookSecret(suppliedSecret, secret)) return { status: 401, body: { ok: false, error: "WEBHOOK_UNAUTHORIZED" } };
 
     const bytes = Buffer.isBuffer(rawBody) ? rawBody :
