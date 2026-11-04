@@ -140,8 +140,8 @@ test("webhook handler and KRATT dispatcher compose into one authorized event pat
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
     inbox: {
-      claim: async ({ eventId }) => eventId === "42",
-      complete: async ({ eventId }) => { completed = eventId === "42"; },
+      claim: async ({ eventId }) => eventId === "42" ? { claimed:true, leaseToken:"lease-42" } : null,
+      complete: async ({ eventId, leaseToken }) => { completed = eventId === "42" && leaseToken === "lease-42"; },
       fail: async () => {}
     },
     dispatch: dispatcher
