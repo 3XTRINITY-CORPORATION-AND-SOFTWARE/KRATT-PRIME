@@ -37,10 +37,16 @@ test("rejects duplicate Mini App initData keys and tampering", () => {
 
 test("webhook authenticates before parsing and atomically deduplicates", async () => {
   const seen = new Set();
+  const completed = new Set();
+  const failed = [];
   const dispatched = [];
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
-    inbox: { claim: async ({ eventId }) => { if (seen.has(eventId)) return false; seen.add(eventId); return true; } },
+    inbox: {
+      claim: async ({ eventId }) => { if (seen.has(eventId)) return false; seen.add(eventId); return true; },
+      complete: async ({ eventId }) => completed.add(eventId),
+      fail: async entry => failed.push(entry)
+    },
     dispatch: async event => dispatched.push(event)
   });
   const rawBody = JSON.stringify({ update_id: 77, message: { message_id: 1 } });
@@ -49,6 +55,26 @@ test("webhook authenticates before parsing and atomically deduplicates", async (
   const duplicate = await handler({ headers: { "x-telegram-bot-api-secret-token": "a-webhook-secret-value" }, rawBody });
   assert.equal(duplicate.body.duplicate, true);
   assert.equal(dispatched.length, 1);
+  assert.equal(completed.has("77"), true);
+});
+
+test("marks a claimed webhook event retryable when dispatch fails", async () => {
+  const failed = [];
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: {
+      claim: async () => true,
+      complete: async () => {},
+      fail: async entry => failed.push(entry)
+    },
+    dispatch: async () => { throw new Error("downstream unavailable"); }
+  });
+  const response = await handler({
+    headers: { "x-telegram-bot-api-secret-token": "a-webhook-secret-value" },
+    rawBody: JSON.stringify({ update_id: 78, message: { message_id: 2 } })
+  });
+  assert.equal(response.status, 503);
+  assert.deepEqual(failed, [{ provider: "telegram", eventId: "78", retryable: true }]);
 });
 
 test("validates Stars payment amount, currency and charge identity", () => {
