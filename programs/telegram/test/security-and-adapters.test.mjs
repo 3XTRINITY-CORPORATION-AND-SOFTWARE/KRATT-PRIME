@@ -119,3 +119,17 @@ test("webhook accepts case-insensitive secret header and rejects invalid body li
   });
   assert.equal(response.status, 200);
 });
+
+test("Mini App bot HMAC validation accepts the optional third-party signature field", () => {
+  const token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
+  const now = 1_800_000_000;
+  const raw = signedInitData(token, {
+    auth_date: String(now),
+    query_id: "query-optional-signature",
+    signature: "third-party-ed25519-signature",
+    user: JSON.stringify({ id: 8 })
+  });
+  const result = validateMiniAppInitData(raw, token, { nowSeconds: now });
+  assert.equal(result.ok, true);
+  assert.equal(result.data.signature, "third-party-ed25519-signature");
+});
