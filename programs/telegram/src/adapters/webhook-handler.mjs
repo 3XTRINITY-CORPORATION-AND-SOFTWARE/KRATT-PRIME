@@ -4,7 +4,7 @@ import { validateTelegramUpdate } from "../contracts/telegram-update.mjs";
 /**
  * Framework-neutral webhook handler.
  * inbox.claim must atomically create a durable PENDING record keyed by provider + event ID.
- * inbox.complete/fail must persist the terminal/retry state. A DB unique constraint is required.
+ * inbox.complete/fail must persist terminal/retry state using the lease token returned by claim. A DB unique constraint and lease-token fencing are required.
  */
 export function createTelegramWebhookHandler({ secret, inbox, dispatch, maxBodyBytes = 1_048_576 }) {
   if (!inbox || !["claim", "complete", "fail"].every(key => typeof inbox[key] === "function")) {
