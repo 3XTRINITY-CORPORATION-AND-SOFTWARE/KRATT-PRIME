@@ -1,26 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
 import { KRATT_SCHEMA_VERSION } from "../../../packages/kratt-core/src/contracts.mjs";
-import { createTrustedAuthorizationRuntime } from "../../../packages/kratt-core/src/trusted-runtime.mjs";
+import { evaluatePolicy } from "../../../packages/kratt-core/src/policy.mjs";
 import { createKrattTelegramDispatcher } from "../src/adapters/kratt-policy-dispatcher.mjs";
 
 const at = "2026-11-04T14:00:00Z";
 const now = Date.parse(at);
 const update = { update_id: 42, message: { message_id: 9 } };
 
-function makeRuntime(action, sideEffectClass) {
-  const { publicKey } = generateKeyPairSync("ed25519");
-  return createTrustedAuthorizationRuntime({
-    trustedApprovalKeys: [{
-      key_id: "test-key",
-      approver_id: "security-owner",
-      public_key_pem: publicKey.export({ type: "spki", format: "pem" }),
-      authorities: ["telegram.approve"]
-    }],
-    nonceStore: { consume: () => true },
-    verifyEvidence: () => false,
-    now: () => now
+function makeRuntime() {
+  return Object.freeze({
+    evaluate: (task, evidence, trustedContext, options = {}) =>
+      evaluatePolicy(task, evidence, trustedContext, {
+        ...options,
+        now,
+        verifyEvidence: () => false
+      })
   });
 }
 
@@ -58,7 +53,7 @@ function makeContext(action, eventId, sideEffectClass = "READ_ONLY") {
 }
 
 function dependencies({ action = "telegram.message.process", sideEffectClass = "READ_ONLY", auditResult = true } = {}) {
-  const runtime = makeRuntime(action, sideEffectClass);
+  const runtime = makeRuntime();
   const records = [];
   const executions = [];
   const dispatcher = createKrattTelegramDispatcher({
@@ -72,7 +67,7 @@ function dependencies({ action = "telegram.message.process", sideEffectClass = "
   return { dispatcher, records, executions };
 }
 
-test("Telegram event passes through the real KRATT runtime before execution", async () => {
+test("Telegram event passes through the KRATT policy evaluator before execution", async () => {
   const { dispatcher, records, executions } = dependencies();
   const result = await dispatcher({ update, eventId: "42", eventType: "message" });
   assert.equal(result.ok, true);
@@ -110,15 +105,7 @@ test("event ID and event type must match the Telegram update envelope", async ()
 });
 
 test("KRATT task must be bound to Telegram provider and event ID", async () => {
-  const { publicKey } = generateKeyPairSync("ed25519");
-  const runtime = createTrustedAuthorizationRuntime({
-    trustedApprovalKeys: [{
-      key_id: "test-key", approver_id: "security-owner",
-      public_key_pem: publicKey.export({ type: "spki", format: "pem" }),
-      authorities: ["telegram.approve"]
-    }],
-    nonceStore: { consume: () => true }, verifyEvidence: () => false, now: () => now
-  });
+  const runtime = makeRuntime();
   const dispatcher = createKrattTelegramDispatcher({
     authorizationRuntime: runtime,
     buildTask: () => makeTask("telegram.message.process", "different-id"),
