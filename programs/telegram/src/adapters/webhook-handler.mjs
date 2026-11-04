@@ -11,12 +11,16 @@ export function createTelegramWebhookHandler({ secret, inbox, dispatch, maxBodyB
     throw new TypeError("A durable inbox with atomic claim, complete and fail methods is required");
   }
   if (typeof dispatch !== "function") throw new TypeError("A dispatch function is required");
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1) throw new TypeError("maxBodyBytes must be a positive safe integer");
 
   return async function handleWebhook({ headers = {}, rawBody }) {
-    const suppliedSecret = headers["x-telegram-bot-api-secret-token"] ?? headers["X-Telegram-Bot-Api-Secret-Token"];
+    const suppliedSecret = Object.entries(headers ?? {})
+      .find(([name]) => name.toLowerCase() === "x-telegram-bot-api-secret-token")?.[1];
     if (!verifyWebhookSecret(suppliedSecret, secret)) return { status: 401, body: { ok: false, error: "WEBHOOK_UNAUTHORIZED" } };
 
-    const bytes = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ""), "utf8");
+    const bytes = Buffer.isBuffer(rawBody) ? rawBody :
+      rawBody instanceof Uint8Array ? Buffer.from(rawBody) :
+      Buffer.from(typeof rawBody === "string" ? rawBody : "", "utf8");
     if (bytes.length === 0 || bytes.length > maxBodyBytes) {
       return { status: 413, body: { ok: false, error: "WEBHOOK_BODY_SIZE_INVALID" } };
     }
