@@ -88,3 +88,34 @@ test("validates Stars payment amount, currency and charge identity", () => {
   assert.equal(activatePaidEntitlement({ paymentState: "PENDING_PROVIDER", payment, expected }).entitlementEligible, true);
   assert.equal(activatePaidEntitlement({ paymentState: "CREATED", payment, expected }).ok, false);
 });
+
+test("Mini App initData uses deterministic case-sensitive key ordering", () => {
+  const token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
+  const now = 1_800_000_000;
+  const raw = signedInitData(token, {
+    auth_date: String(now),
+    A: "uppercase-key",
+    a: "lowercase-key",
+    user: JSON.stringify({ id: 7 })
+  });
+  assert.equal(validateMiniAppInitData(raw, token, { nowSeconds: now }).ok, true);
+});
+
+test("webhook accepts case-insensitive secret header and rejects invalid body limits", async () => {
+  assert.throws(() => createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    dispatch: async () => {},
+    maxBodyBytes: 0
+  }), /maxBodyBytes/);
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    dispatch: async () => {}
+  });
+  const response = await handler({
+    headers: { "X-TELEGRAM-BOT-API-SECRET-TOKEN": "a-webhook-secret-value" },
+    rawBody: Buffer.from(JSON.stringify({ update_id: 79, message: { message_id: 3 } }))
+  });
+  assert.equal(response.status, 200);
+});
