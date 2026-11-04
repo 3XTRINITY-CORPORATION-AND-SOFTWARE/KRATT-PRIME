@@ -20,10 +20,12 @@ test("PostgreSQL inbox returns a unique lease token and fences completion/failur
   await inbox.complete({ provider: "telegram", eventId: "42", leaseToken: claim.leaseToken });
   assert.match(calls[1].sql, /lease_token = \$3/);
   assert.match(calls[1].sql, /lease_token = NULL/);
+  assert.match(calls[1].sql, /locked_at >= now/);
 
   await inbox.fail({ provider: "telegram", eventId: "43", leaseToken: "lease-43", retryable: true });
   assert.match(calls[2].sql, /lease_token = \$3/);
   assert.match(calls[2].sql, /DEAD_LETTER/);
+  assert.match(calls[2].sql, /locked_at >= now/);
 });
 
 test("PostgreSQL inbox validates adapter configuration and lease tokens", async () => {
