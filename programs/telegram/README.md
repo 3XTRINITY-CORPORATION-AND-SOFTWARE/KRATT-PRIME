@@ -50,3 +50,27 @@ Run the PostgreSQL migration before constructing `createPostgresTelegramInbox(po
 - Bot API rate limiting and method-aware retry policy.
 - Stars invoice creation, pre-checkout handler, refund flow and durable ledger posting.
 - KRATT Policy/Saga/evidence adapters and end-to-end acceptance tests.
+
+## KRATT policy bridge
+
+Pass the dispatcher directly as the webhook handler's `dispatch` dependency:
+
+```js
+const dispatch = createKrattTelegramDispatcher({
+  authorizationRuntime: trustedAuthorizationRuntime,
+  buildTask: buildCanonicalTelegramTask,
+  getTrustedContext: loadTrustedContext,
+  getEvidence: verifyRequiredEvidence,
+  getApproval: loadRequestBoundApproval,
+  execute: executeTelegramAction,
+  audit: durableIdempotentAudit
+});
+
+const handleWebhook = createTelegramWebhookHandler({
+  secret: process.env.TELEGRAM_WEBHOOK_SECRET,
+  inbox: durableTelegramInbox,
+  dispatch
+});
+```
+
+The providers above are deployment composition-root dependencies, not defaults supplied by this package. The audit store must durably deduplicate each `(eventId, phase)`; the executor must honor `idempotencyKey`. Until those providers are implemented and tested against real infrastructure, the bridge remains a tested integration contract rather than a production connection.
