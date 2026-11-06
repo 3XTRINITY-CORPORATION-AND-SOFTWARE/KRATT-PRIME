@@ -41,8 +41,6 @@ export function validateMiniAppInitData(rawInitData, botToken, options = {}) {
   if (!receivedHash || !/^[0-9a-f]{64}$/i.test(receivedHash)) {
     return { ok: false, error: "INIT_DATA_HASH_MISSING_OR_INVALID" };
   }
-  if (params.has("signature")) return { ok: false, error: "INIT_DATA_UNEXPECTED_SIGNATURE_FIELD" };
-
   const authDateRaw = params.get("auth_date");
   if (!authDateRaw || !/^\d+$/.test(authDateRaw)) return { ok: false, error: "INIT_DATA_AUTH_DATE_INVALID" };
   const authDate = Number(authDateRaw);
@@ -53,7 +51,7 @@ export function validateMiniAppInitData(rawInitData, botToken, options = {}) {
   const dataCheckString = entries
     .filter(([key]) => key !== "hash")
     .map(([key, value]) => [key, value])
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([key, value]) => `${key}=${value}`)
     .join("\n");
 

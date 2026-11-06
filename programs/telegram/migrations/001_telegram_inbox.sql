@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS telegram_event_inbox (
   status text NOT NULL CHECK (status IN ('PROCESSING', 'PROCESSED', 'FAILED', 'DEAD_LETTER')),
   attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   locked_at timestamptz,
+  lease_token text,
   next_attempt_at timestamptz,
   processed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -23,3 +24,6 @@ CREATE INDEX IF NOT EXISTS telegram_event_inbox_stale_lock_idx
 
 COMMENT ON TABLE telegram_event_inbox IS
   'Durable idempotency inbox for Telegram updates; do not truncate in production.';
+
+ALTER TABLE telegram_event_inbox
+  ADD COLUMN IF NOT EXISTS lease_token text;

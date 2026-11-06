@@ -16,7 +16,7 @@ over core policy, ledger mutation or agent permissions.
 | TG-04 | Stars payments | XTR-specific state machine, pre-checkout deadline handling, successful payment proof |
 | TG-05 | Entitlements | durable activation, expiry, cancellation and refund handling |
 | TG-06 | Affiliate ledger | separate accrual/liability accounting and maturity rules |
-| TG-07 | KRATT adapter | policy check, scoped tool calls, evidence/provenance |
+| TG-07 | KRATT adapter | policy check, scoped tool calls, evidence/provenance, idempotent audit phases |
 | TG-08 | Recovery | inbox/outbox, idempotent replay, dead-letter review |
 
 ## Required acceptance tests
@@ -31,6 +31,9 @@ over core policy, ledger mutation or agent permissions.
 - Stars XTR are not silently converted to fiat balances or affiliate payout liabilities.
 - Out-of-order state transitions are rejected and recorded for review.
 - Agent tool calls cannot bypass KRATT policy or self-approve restricted actions.
+- A Telegram event whose update ID does not match the canonical task binding is rejected before policy evaluation.
+- A denied KRATT policy decision is audited and acknowledged without executing a side effect.
+- An allowed event records policy and execution intent before the idempotent executor is called.
 
 ## Implementation order
 

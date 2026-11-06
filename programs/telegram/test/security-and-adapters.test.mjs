@@ -43,8 +43,8 @@ test("webhook authenticates before parsing and atomically deduplicates", async (
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
     inbox: {
-      claim: async ({ eventId }) => { if (seen.has(eventId)) return false; seen.add(eventId); return true; },
-      complete: async ({ eventId }) => completed.add(eventId),
+      claim: async ({ eventId }) => { if (seen.has(eventId)) return null; seen.add(eventId); return { claimed:true, leaseToken:`lease-${eventId}` }; },
+      complete: async ({ eventId, leaseToken }) => { assert.equal(leaseToken, `lease-${eventId}`); completed.add(eventId); },
       fail: async entry => failed.push(entry)
     },
     dispatch: async event => dispatched.push(event)
@@ -63,7 +63,7 @@ test("marks a claimed webhook event retryable when dispatch fails", async () => 
   const handler = createTelegramWebhookHandler({
     secret: "a-webhook-secret-value",
     inbox: {
-      claim: async () => true,
+      claim: async () => ({ claimed:true, leaseToken:"lease-78" }),
       complete: async () => {},
       fail: async entry => failed.push(entry)
     },
@@ -74,7 +74,7 @@ test("marks a claimed webhook event retryable when dispatch fails", async () => 
     rawBody: JSON.stringify({ update_id: 78, message: { message_id: 2 } })
   });
   assert.equal(response.status, 503);
-  assert.deepEqual(failed, [{ provider: "telegram", eventId: "78", retryable: true }]);
+  assert.deepEqual(failed, [{ provider: "telegram", eventId: "78", leaseToken: "lease-78", retryable: true }]);
 });
 
 test("validates Stars payment amount, currency and charge identity", () => {
@@ -87,4 +87,67 @@ test("validates Stars payment amount, currency and charge identity", () => {
   assert.equal(verifyStarsSuccessfulPayment({ payment: { ...payment, total_amount: 200 }, expected }).error, "PAYMENT_AMOUNT_MISMATCH");
   assert.equal(activatePaidEntitlement({ paymentState: "PENDING_PROVIDER", payment, expected }).entitlementEligible, true);
   assert.equal(activatePaidEntitlement({ paymentState: "CREATED", payment, expected }).ok, false);
+});
+
+test("Mini App initData uses deterministic case-sensitive key ordering", () => {
+  const token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
+  const now = 1_800_000_000;
+  const raw = signedInitData(token, {
+    auth_date: String(now),
+    A: "uppercase-key",
+    a: "lowercase-key",
+    user: JSON.stringify({ id: 7 })
+  });
+  assert.equal(validateMiniAppInitData(raw, token, { nowSeconds: now }).ok, true);
+});
+
+test("webhook accepts case-insensitive secret header and rejects invalid body limits", async () => {
+  assert.throws(() => createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => ({ claimed:true, leaseToken:"lease-79" }), complete: async () => {}, fail: async () => {} },
+    dispatch: async () => {},
+    maxBodyBytes: 0
+  }), /maxBodyBytes/);
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => ({ claimed:true, leaseToken:"lease-80" }), complete: async () => {}, fail: async () => {} },
+    dispatch: async () => {}
+  });
+  const response = await handler({
+    headers: { "X-TELEGRAM-BOT-API-SECRET-TOKEN": "a-webhook-secret-value" },
+    rawBody: Buffer.from(JSON.stringify({ update_id: 79, message: { message_id: 3 } }))
+  });
+  assert.equal(response.status, 200);
+});
+
+test("Mini App bot HMAC validation accepts the optional third-party signature field", () => {
+  const token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
+  const now = 1_800_000_000;
+  const raw = signedInitData(token, {
+    auth_date: String(now),
+    query_id: "query-optional-signature",
+    signature: "third-party-ed25519-signature",
+    user: JSON.stringify({ id: 8 })
+  });
+  const result = validateMiniAppInitData(raw, token, { nowSeconds: now });
+  assert.equal(result.ok, true);
+  assert.equal(result.data.signature, "third-party-ed25519-signature");
+});
+
+test("webhook rejects ambiguous duplicate secret headers", async () => {
+  let dispatched = 0;
+  const handler = createTelegramWebhookHandler({
+    secret: "a-webhook-secret-value",
+    inbox: { claim: async () => true, complete: async () => {}, fail: async () => {} },
+    dispatch: async () => { dispatched += 1; }
+  });
+  const response = await handler({
+    headers: {
+      "x-telegram-bot-api-secret-token": "a-webhook-secret-value",
+      "X-Telegram-Bot-Api-Secret-Token": "attacker-value"
+    },
+    rawBody: JSON.stringify({ update_id: 80, message: { message_id: 4 } })
+  });
+  assert.equal(response.status, 401);
+  assert.equal(dispatched, 0);
 });

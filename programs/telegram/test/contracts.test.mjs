@@ -31,3 +31,14 @@ test("requires verified payment lifecycle transitions", () => {
     error: "invalid_payment_transition"
   });
 });
+
+test("webhook secret enforces Telegram's allowed format and length", () => {
+  assert.equal(verifyWebhookSecret("secret with spaces", "secret with spaces"), false);
+  assert.equal(verifyWebhookSecret("x".repeat(257), "x".repeat(257)), false);
+  assert.equal(verifyWebhookSecret("valid_token-123", "valid_token-123"), true);
+});
+
+test("rejects a supported update key with a non-object payload", () => {
+  assert.equal(validateTelegramUpdate({ update_id: 3, message: null }).error, "invalid_event_payload");
+  assert.equal(validateTelegramUpdate({ update_id: 3, message: [] }).error, "invalid_event_payload");
+});

@@ -31,6 +31,10 @@ export function validateTelegramUpdate(update) {
   if (presentEvents.length !== 1) {
     return { ok: false, error: "expected_exactly_one_supported_event" };
   }
+  const eventPayload = update[presentEvents[0]];
+  if (!eventPayload || typeof eventPayload !== "object" || Array.isArray(eventPayload)) {
+    return { ok: false, error: "invalid_event_payload" };
+  }
 
   return { ok: true, updateId: update.update_id, eventType: presentEvents[0] };
 }

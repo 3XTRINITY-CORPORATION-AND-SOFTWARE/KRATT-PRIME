@@ -6,7 +6,8 @@ import { timingSafeEqual } from "node:crypto";
  */
 export function verifyWebhookSecret(received, expected) {
   if (typeof received !== "string" || typeof expected !== "string") return false;
-  if (received.length === 0 || expected.length === 0) return false;
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(expected)) return false;
+  if (received.length === 0 || received.length > 256) return false;
 
   const receivedBuffer = Buffer.from(received, "utf8");
   const expectedBuffer = Buffer.from(expected, "utf8");

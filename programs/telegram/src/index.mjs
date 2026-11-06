@@ -6,3 +6,4 @@ export { createTelegramWebhookHandler } from "./adapters/webhook-handler.mjs";
 export { createPostgresTelegramInbox } from "./adapters/postgres-inbox.mjs";
 export { canTransitionPayment, transitionPayment } from "./domain/payment-state.mjs";
 export { verifyStarsSuccessfulPayment, activatePaidEntitlement } from "./domain/telegram-payment.mjs";
+export { createKrattTelegramDispatcher } from "./adapters/kratt-policy-dispatcher.mjs";
