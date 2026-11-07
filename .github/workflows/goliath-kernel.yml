@@ -2,7 +2,7 @@ name: GOLIATH Kernel Rust checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, work/kratt-prime-roadmap-v3-2026-11-06]
     paths:
       - "packages/goliath-kernel/**"
       - ".github/workflows/goliath-kernel.yml"
