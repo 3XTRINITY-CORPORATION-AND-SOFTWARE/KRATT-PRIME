@@ -64,3 +64,15 @@ test("rejects malformed route inputs", () => {
   assert.equal(proposeComputeRoute({ snapshot, stage: "UNKNOWN", allowedBackends: ["CPU"] }).reason, "INFERENCE_STAGE_INVALID");
   assert.equal(proposeComputeRoute({ snapshot, stage: "DECODE", allowedBackends: ["ROOT"] }).reason, "BACKEND_ALLOWLIST_INVALID");
 });
+test("classifies the complete route result envelope", () => {
+  const snapshot = validateHardwareSnapshot(sample()).snapshot;
+  const route = proposeComputeRoute({ snapshot, stage: "PREFILL", allowedBackends: ["CPU", "GPU", "NPU"] });
+  assert.equal(classifyRuntimeState({ adapterConfigured: true, snapshot, route }), "ROUTE_PROPOSED_NOT_EXECUTED");
+});
+
+test("rejects malformed unvalidated snapshots without throwing", () => {
+  const malformed = { schemaVersion: "0.2.0", platform: "linux", architecture: "x86_64", observedAt: 1794000000000, devices: [{ id: "gpu0", kind: "GPU", state: "AVAILABLE", backends: [{ id: "bad", kind: "provider", state: "AVAILABLE", stages: "PREFILL" }] }] };
+  const result = proposeComputeRoute({ snapshot: malformed, stage: "PREFILL", allowedBackends: ["GPU"] });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "SNAPSHOT_INVALID:BACKEND_STAGES_INVALID");
+});
