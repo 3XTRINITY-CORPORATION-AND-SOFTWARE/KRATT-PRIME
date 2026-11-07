@@ -9,7 +9,7 @@ on:
       - "packages/kratt-core/test/linux-operations.test.mjs"
       - ".github/workflows/linux-operations-tests.yml"
   pull_request:
-    branches: [main]
+    branches: [main, work/kratt-prime-roadmap-v3-2026-11-06]
     paths:
       - "packages/kratt-core/src/linux-operations.mjs"
       - "packages/kratt-core/test/linux-operations.test.mjs"
