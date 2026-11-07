@@ -76,6 +76,9 @@ export function validateHardwareSnapshot(input) {
 /** Route proposal only. Caller must still run policy, approval and model compatibility gates. */
 export function proposeComputeRoute({ snapshot, stage, allowedBackends, requireLocal = false } = {}) {
   if (!snapshot || !isPlainObject(snapshot) || snapshot.schemaVersion !== HARDWARE_CONTRACT_VERSION) return invalid("SNAPSHOT_REQUIRED");
+  const validated = validateHardwareSnapshot(snapshot);
+  if (!validated.ok) return invalid(`SNAPSHOT_INVALID:${validated.reason}`);
+  snapshot = validated.snapshot;
   if (!INFERENCE_STAGES.includes(stage)) return invalid("INFERENCE_STAGE_INVALID");
   if (!Array.isArray(allowedBackends) || allowedBackends.length === 0 || allowedBackends.some(x => !COMPUTE_BACKENDS.includes(x))) return invalid("BACKEND_ALLOWLIST_INVALID");
   if (typeof requireLocal !== "boolean") return invalid("LOCALITY_FLAG_INVALID");
@@ -109,7 +112,8 @@ export function classifyRuntimeState({ adapterConfigured = false, snapshot, rout
   if (lastError) return "ERROR";
   if (!adapterConfigured) return "NOT_CONFIGURED";
   if (!snapshot) return "CONFIGURED_NOT_DISCOVERED";
-  if (route?.state === "BLOCKED") return "BLOCKED";
-  if (route?.state === "PROPOSED") return "ROUTE_PROPOSED_NOT_EXECUTED";
+  const routeProposal = route?.proposal ?? route;
+  if (routeProposal?.state === "BLOCKED") return "BLOCKED";
+  if (routeProposal?.state === "PROPOSED") return "ROUTE_PROPOSED_NOT_EXECUTED";
   return "DISCOVERED_NOT_EXECUTED";
 }
