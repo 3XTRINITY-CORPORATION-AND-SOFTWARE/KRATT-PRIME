@@ -20,10 +20,20 @@ Lab visualizer / presence art, designed to sync with **STEEL**. Surfaces:
 ## Develop
 
 ```bash
-npm install
+npm ci
 npm run typecheck
 npm run build
 npm run pack   # optional deploy pack
+```
+
+## KRATT PRIME host runtime
+
+The additive Node host runtime lives under `packages/kratt-runtime/`; it is separate from the AURA browser app. It binds to loopback, exposes health/readiness only, and keeps repository and worker adapters read-only/dry-run. See [the v1 runtime contract](docs/runtime/KERNEL-FIRST-EVIDENCE-RUNTIME-V1.md).
+
+```bash
+npm run runtime
+npm run lint
+npm test
 ```
 
 ## Deploy
