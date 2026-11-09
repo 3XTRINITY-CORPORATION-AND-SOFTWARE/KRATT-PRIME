@@ -16,6 +16,7 @@ Set optional `KRATT_*` values from `.env.example` in the process environment, th
 - Adds Bayesian log-odds scaffolding that abstains unless each observation carries an explicit calibration identifier and positive likelihood ratio. Records in one dependency group are not multiplied; conflicting records in a group yield `CONFLICTED` and no posterior.
 - Adds an injected repository index interface pinned to full commit SHA, capped file/byte budgets, content digests and no write method. It stores metadata only and does not send content anywhere.
 - Adds worker and Pico-Cloud description/proposal interfaces. Dispatch remains false; remote targets require an explicit transfer approval signal and still produce no execution.
+- `packages/kratt-runtime/src/durable-evidence.mjs` now persists validated ECK cards through the existing fsync'd PrimeStore journal and rebuilds an in-memory projection on open. This is a single-process local journal adapter, not a transactional database or multi-process lock.
 
 ## Truth and status vocabulary
 
@@ -25,7 +26,7 @@ The root claim is the versioned canonical assertion. `OBSERVED`, `INFERRED`, `CO
 
 - Likelihood ratios and calibration identifiers are caller-supplied. There is no calibration corpus, prior estimator, uncertainty interval or proof that calibration transport is valid. Do not display the posterior as a calibrated production probability until a labelled, leakage-controlled corpus and independent calibration review exist.
 - The per-dependency-group minimum absolute log-likelihood contribution is a conservative duplicate-handling heuristic, not a general dependence model. Replace it only with validated dependency structure and back-tested aggregation.
-- The in-memory core ledger is not durable, signed, multi-user isolated, or crash-safe. Add an append-only transactional store plus migration and recovery tests before accepting persistent evidence.
+- The core `EvidenceLedger` remains in-memory; the durable wrapper appends ECK records to PrimeStore before updating its projection. PrimeStore is not encrypted, cross-process transactional, signed, or multi-user isolated. Schema v1 records are replayed as-is; a future schema change must build a versioned migration/reprojection path and recovery tests before changing the journal format.
 - The repository adapter has no GitHub/GitLab client; callers must supply read-only functions. Add provider scopes, rate budgets and license/secret scanning before connecting external repositories.
 - No MCU inference, firmware, hardware route execution, network listener beyond loopback, authentication, account roles, external write, cloud worker, deployment, or privileged operation is implemented.
 
