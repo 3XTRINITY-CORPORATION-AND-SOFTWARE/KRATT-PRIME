@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "pack": "node scripts/pack-deploy.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
-    "test": "node --test packages/kratt-core/test/*.test.mjs"
+    "test": "node --test packages/kratt-core/test/*.test.mjs server/test/*.test.mjs",
+    "server": "node server/src/index.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
