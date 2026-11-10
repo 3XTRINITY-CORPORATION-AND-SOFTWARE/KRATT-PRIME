@@ -121,16 +121,19 @@ export function reflectEvidence({ rootClaim, branches, requiredInvariants = [] }
   }
   if (!Array.isArray(requiredInvariants)) failures.push("INVARIANTS_INVALID");
   else for (const invariant of requiredInvariants) if (invariant?.passed !== true) failures.push(`INVARIANT_FAILED:${invariant?.id ?? "unknown"}`);
-  const statements = new Set(branchList.flatMap(branch => (branch.findings ?? []).map(card => `${card.evidence.subject}:${card.evidence.decision}`)));
-  const conflict = [...statements].some(left => {
-    const [subject, decision] = left.split(":");
-    return [...statements].some(right => right.startsWith(`${subject}:`) && right !== left && ["VERIFIED", "BLOCKED"].includes(decision));
-  });
+  const decisionsBySubject = new Map();
+  for (const branch of branchList) for (const card of branch.findings ?? []) {
+    const decisions = decisionsBySubject.get(card.evidence.subject) ?? new Set();
+    decisions.add(card.evidence.decision);
+    decisionsBySubject.set(card.evidence.subject, decisions);
+  }
+  const conflict = [...decisionsBySubject.values()].some(decisions => decisions.has("VERIFIED") && decisions.has("BLOCKED"));
   const state = failures.length ? "REJECTED" : conflict ? "CONFLICTED" : "VALIDATED";
   return Object.freeze({ ok: failures.length === 0 && !conflict, state, rootId: rootClaim?.rootId ?? null,
     rootRevision: rootClaim?.revision ?? null, branchCount: branchList.length,
     validatedDelta: state === "VALIDATED" ? Object.freeze({ fromRevision: rootClaim.revision,
       status: "PROPOSED_ONLY", autoApply: false }) : null, failures: Object.freeze(failures) });
 }
+
 
 
