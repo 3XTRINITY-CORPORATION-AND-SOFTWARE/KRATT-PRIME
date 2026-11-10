@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 const DEFAULTS = Object.freeze({
   host: "127.0.0.1",
   port: 3000,
@@ -17,12 +19,19 @@ function parsePort(value) {
 function parseHost(value) {
   if (value === undefined || value === "") return DEFAULTS.host;
   if (typeof value !== "string" || value.length > 255 || /[\s\u0000-\u001f\u007f]/.test(value)) {
-    throw new TypeError("HOST must be a non-empty hostname or IP address");
+    throw new TypeError("HOST must be a loopback address; public binding is disabled");
   }
+
+  const loopback = value === "localhost" || value === "::1" ||
+    (isIP(value) === 4 && value.startsWith("127."));
+  if (!loopback) throw new TypeError("HOST must be a loopback address; public binding is disabled");
   return value;
 }
 
-/** Read and validate only the non-secret settings needed to bind the HTTP server. */
+/**
+ * Load the small, explicitly allowlisted, non-secret server configuration.
+ * This intentionally does not parse .env files or accept credential settings.
+ */
 export function loadServerConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV || DEFAULTS.nodeEnv;
   if (!new Set(["development", "test", "production"]).has(nodeEnv)) {

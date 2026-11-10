@@ -4,13 +4,8 @@ This package is a small, read-only Node.js HTTP starting point kept separate fro
 
 ## Run locally
 
-Requires Node.js 22. Start with `npm run server`. Defaults bind only to `127.0.0.1:3000`; set `HOST` or `PORT` explicitly when needed. `PORT=0` asks the operating system for an available port.
+Requires Node.js 22. Start with `npm run server`. Defaults bind only to `127.0.0.1:3000`; set `HOST` only to a loopback address and `PORT` explicitly when needed. `PORT=0` asks the operating system for an available port.
 
-Available routes:
-
-- `GET /health` — static health response.
-- `GET /` — static service/mode response.
-
-All other paths return a generic 404, and methods other than GET/HEAD are rejected. There are no task execution, database, provider, authentication, or deployment integrations in this foundation. Do not expose it publicly or treat the health endpoint as an authorization boundary.
+See [API-CONTRACT.md](API-CONTRACT.md) for the route contract and limitations. The foundation has no authentication, task admission or execution, database, provider, or deployment integration. Do not expose it publicly or treat health/status routes as an authorization boundary.
 
 Run tests with `npm test`.
