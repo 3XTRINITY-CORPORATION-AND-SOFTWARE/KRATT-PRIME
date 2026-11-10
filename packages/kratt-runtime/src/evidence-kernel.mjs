@@ -22,6 +22,33 @@ export function createEvidenceCard(input) {
   return Object.freeze({ ok: true, card: Object.freeze({ ...body, contentDigest: hash(JSON.stringify(body)) }) });
 }
 
+/** Convert local Git index metadata into provenance-bearing ECK observations. */
+export function createRepositoryEvidenceCards({ index, rootId, branchId, actorId, occurredAt }) {
+  const sha = /^[0-9a-f]{40}$/;
+  const identifier = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+  if (!index?.ok || !sha.test(index.revision ?? "") || !Array.isArray(index.files) || index.files.length > 500 ||
+      !identifier.test(rootId ?? "") || !identifier.test(branchId ?? "") || !identifier.test(actorId ?? "") ||
+      typeof occurredAt !== "string" || !Number.isFinite(Date.parse(occurredAt))) {
+    return { ok: false, reason: "REPOSITORY_INDEX_EVIDENCE_INPUT_INVALID" };
+  }
+  const cards = [];
+  for (const file of index.files) {
+    if (!file || !sha.test(file.blobSha ?? "") || !/^sha256:[0-9a-f]{64}$/.test(file.contentDigest ?? "") ||
+        !Number.isSafeInteger(file.byteLength) || file.byteLength < 0 || typeof file.path !== "string" || file.path.length > 512) {
+      return { ok: false, reason: "REPOSITORY_INDEX_METADATA_INVALID" };
+    }
+    const pathDigest = createHash("sha256").update(file.path).digest("hex");
+    const card = createEvidenceCard({ rootId, branchId, eventId: `repo-${index.revision.slice(0, 12)}-${pathDigest.slice(0, 32)}`,
+      eventType: "repository.file.indexed", actorId, occurredAt, subject: `repo-file:${pathDigest.slice(0, 48)}`,
+      decision: "OBSERVED", sourceRef: { provider: "local-git", resource: file.blobSha, revision: index.revision },
+      artifactDigest: file.contentDigest, metadata: { path: file.path, blobSha: file.blobSha, byteLength: file.byteLength,
+        indexing: "metadata-only" } });
+    if (!card.ok) return card;
+    cards.push(card.card);
+  }
+  return Object.freeze({ ok: true, cards: Object.freeze(cards) });
+}
+
 export function createBranchManager(rootClaim) {
   if (!rootClaim || rootClaim.schemaVersion !== "kratt-root-claim/v1") throw new TypeError("ROOT_CLAIM_REQUIRED");
   const branches = new Map();
@@ -104,3 +131,4 @@ export function reflectEvidence({ rootClaim, branches, requiredInvariants = [] }
     validatedDelta: state === "VALIDATED" ? Object.freeze({ fromRevision: rootClaim.revision,
       status: "PROPOSED_ONLY", autoApply: false }) : null, failures: Object.freeze(failures) });
 }
+
