@@ -30,7 +30,6 @@ export class PrimeStore {
   constructor({ path }) { if (typeof path !== "string" || !path) throw new TypeError("STORE_PATH_REQUIRED"); this.#path = path; }
   async open() {
     if (this.#loaded) return this;
-    await mkdir(dirname(this.#path), { recursive: true });
     let raw; try { raw = await readFile(this.#path, "utf8"); } catch (e) { if (e.code !== "ENOENT") throw e; raw = ""; }
     const verified = verifyJournal(raw);
     this.#sequence = verified.sequence; this.#head = verified.head; this.#ids = verified.ids; this.#loaded = true; return this;
@@ -49,6 +48,7 @@ export class PrimeStore {
       if (this.#ids.has(idempotencyKey)) return Object.freeze({ ok:true, duplicate:true, sequence:null });
       const next = this.#sequence + 1, payload = { sequence:next,id:idempotencyKey,key,value,previousHash:this.#head };
       const entry = { ...payload, hash:digest(canonical(payload)) };
+      await mkdir(dirname(this.#path), { recursive: true });
       const file = await open(this.#path, "a", 0o600);
       try { await file.writeFile(canonical(entry) + "\n", "utf8"); await file.sync(); } finally { await file.close(); }
       this.#sequence = next; this.#head = entry.hash; this.#ids.add(idempotencyKey);
@@ -70,3 +70,4 @@ export class PrimeStore {
     return Object.freeze({loaded:true,entries:this.#sequence,headHash:this.#head,encrypted:false,remoteSync:false});
   }
 }
+
