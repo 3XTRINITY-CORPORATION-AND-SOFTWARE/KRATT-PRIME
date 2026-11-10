@@ -38,7 +38,8 @@ export function createRepositoryEvidenceCards({ index, rootId, branchId, actorId
       return { ok: false, reason: "REPOSITORY_INDEX_METADATA_INVALID" };
     }
     const pathDigest = createHash("sha256").update(file.path).digest("hex");
-    const card = createEvidenceCard({ rootId, branchId, eventId: `repo-${index.revision.slice(0, 12)}-${pathDigest.slice(0, 32)}`,
+    const scopeDigest = createHash("sha256").update(`${rootId}\0${branchId}`).digest("hex");
+    const card = createEvidenceCard({ rootId, branchId, eventId: `repo-${scopeDigest.slice(0, 12)}-${index.revision.slice(0, 12)}-${pathDigest.slice(0, 32)}`,
       eventType: "repository.file.indexed", actorId, occurredAt, subject: `repo-file:${pathDigest.slice(0, 48)}`,
       decision: "OBSERVED", sourceRef: { provider: "local-git", resource: file.blobSha, revision: index.revision },
       artifactDigest: file.contentDigest, metadata: { path: file.path, blobSha: file.blobSha, byteLength: file.byteLength,
@@ -131,4 +132,5 @@ export function reflectEvidence({ rootClaim, branches, requiredInvariants = [] }
     validatedDelta: state === "VALIDATED" ? Object.freeze({ fromRevision: rootClaim.revision,
       status: "PROPOSED_ONLY", autoApply: false }) : null, failures: Object.freeze(failures) });
 }
+
 
