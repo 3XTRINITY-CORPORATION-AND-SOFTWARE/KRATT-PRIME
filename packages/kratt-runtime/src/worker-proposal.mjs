@@ -158,12 +158,15 @@ async function recordWorkerLeaseReservation({ repository, reservation, rootId, b
   }
   const eventId = `worker-lease-${createHash("sha256").update(`${rootId}\0${branchId}\0${proposal.planDigest}\0${reservation.fencingToken}`).digest("hex").slice(0, 48)}`;
   try {
-    return await repository.append({ rootId, branchId, eventId, eventType: "worker.lease.reserved", actorId, occurredAt,
+    const result = await repository.append({ rootId, branchId, eventId, eventType: "worker.lease.reserved", actorId, occurredAt,
       subject: `worker-task:${proposal.taskId}`, decision: "OBSERVED",
       sourceRef: { provider: "kratt-worker", resource: proposal.workerId, revision: null }, artifactDigest: proposal.planDigest,
       metadata: { state: "RESERVED", target: proposal.target, dataClass: proposal.dataClass, taskDigest: proposal.taskDigest,
         reservationKeyDigest: hash(proposal.idempotencyKey), fencingNumber: reservation.fencingToken,
         expiresAt: reservation.expiresAt, dispatch: false, executionStarted: false } });
+    return result?.ok === true && result.card?.schemaVersion === "kratt-eck-card/v1" &&
+      result.card.evidence?.eventId === eventId && result.card.evidence?.eventType === "worker.lease.reserved"
+      ? result : Object.freeze({ ok: false, reason: "WORKER_LEASE_AUDIT_RECEIPT_INVALID" });
   } catch { return Object.freeze({ ok: false, reason: "WORKER_LEASE_AUDIT_FAILED" }); }
 }
 
@@ -215,7 +218,7 @@ export async function recordWorkerProposal({ repository, proposal, rootId, branc
   }
   const eventId = `worker-${createHash("sha256").update(`${rootId}\0${branchId}\0${proposal.taskId}\0${proposal.planDigest}`).digest("hex").slice(0, 48)}`;
   try {
-    return await repository.append({ rootId, branchId, eventId,
+    const result = await repository.append({ rootId, branchId, eventId,
       eventType: proposal.state === "PROPOSED" ? "worker.dispatch.proposed" : "worker.dispatch.blocked",
       actorId, occurredAt, subject: `worker-task:${proposal.taskId}`,
       decision: proposal.state === "PROPOSED" ? "OBSERVED" : "BLOCKED",
@@ -226,6 +229,10 @@ export async function recordWorkerProposal({ repository, proposal, rootId, branc
         taskDigest: proposal.taskDigest ?? null, reservationKeyDigest: proposal.idempotencyKey ? hash(proposal.idempotencyKey) : null,
         effectiveCapabilities: proposal.effectiveCapabilities ?? [], maxCostUnits: proposal.maxCostUnits ?? 0,
         maxDurationMs: proposal.maxDurationMs ?? 0 } });
+    const expectedType = proposal.state === "PROPOSED" ? "worker.dispatch.proposed" : "worker.dispatch.blocked";
+    return result?.ok === true && result.card?.schemaVersion === "kratt-eck-card/v1" &&
+      result.card.evidence?.eventId === eventId && result.card.evidence?.eventType === expectedType
+      ? result : Object.freeze({ ok: false, reason: "WORKER_PROPOSAL_AUDIT_RECEIPT_INVALID" });
   } catch {
     return Object.freeze({ ok: false, reason: "WORKER_PROPOSAL_AUDIT_FAILED" });
   }
