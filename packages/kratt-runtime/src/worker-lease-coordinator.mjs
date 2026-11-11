@@ -97,14 +97,24 @@ export function createWorkerLeaseCoordinator({ store, now = () => new Date().toI
 
     const task = enqueueForStore(store, async () => {
       await refresh();
-      const prior = operations.get(request.operationId);
-      if (prior) return prior.operationDigest === operationDigest
-        ? Object.freeze({ ...clone(prior.result), duplicate: true })
-        : Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_LEASE_OPERATION_ID_REUSED", dispatch: false });
-
       let instant;
       try { instant = now(); } catch { instant = null; }
       if (!isUtc(instant)) return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_LEASE_CLOCK_INVALID", dispatch: false });
+
+      const prior = operations.get(request.operationId);
+      if (prior) {
+        if (prior.operationDigest !== operationDigest) return Object.freeze({ ok: false, state: "BLOCKED",
+          reason: "WORKER_LEASE_OPERATION_ID_REUSED", dispatch: false });
+        if (!prior.result.ok || prior.operation === "release") return Object.freeze({ ...clone(prior.result), duplicate: true });
+        const current = reservations.get(request.reservationKey);
+        const currentLease = current?.lease;
+        if (current?.fence !== prior.result.fencingToken || currentLease?.ownerId !== request.ownerId ||
+            Date.parse(currentLease.expiresAt) <= Date.parse(instant)) {
+          return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_LEASE_REPLAY_STALE", duplicate: true, dispatch: false });
+        }
+        return Object.freeze({ ok: true, state: "LEASED", reservationKey: request.reservationKey, ownerId: request.ownerId,
+          fencingToken: current.fence, expiresAt: currentLease.expiresAt, duplicate: true, dispatch: false, executionStarted: false });
+      }
 
       let reservation = reservations.get(request.reservationKey) ?? {
         schemaVersion: WORKER_LEASE_SCHEMA, reservationKey: request.reservationKey, taskDigest: request.taskDigest,

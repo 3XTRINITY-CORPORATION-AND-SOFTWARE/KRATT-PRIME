@@ -10,7 +10,7 @@ The component never dispatches work, starts a worker, or contacts Pico-Cloud. Le
 
 ## Contract
 
-Use one `PrimeStore` instance and one journal path for the coordinator. Each mutation requires a unique operation ID. Repeating an identical operation ID and request returns the persisted outcome; reusing an operation ID for different inputs is rejected. A reservation key is bound to one `sha256:` task digest for the lifetime of the journal. Changing the payload under the same key is rejected.
+Use one `PrimeStore` instance and one journal path for the coordinator. Each mutation requires a unique operation ID. Repeating an identical operation ID and request returns its persisted outcome while safe; an old successful acquire/renew replay is blocked if that exact fencing lease is no longer current. Reusing an operation ID for different inputs is rejected. A reservation key is bound to one `sha256:` task digest for the lifetime of the journal. Changing the payload under the same key is rejected.
 
 `acquire` grants a lease for 1 second through 15 minutes. A live lease blocks another acquisition. Once expired, a later acquisition advances the fence. `renew` and `release` require the current owner ID and fencing number. Stale owners and stale fencing values are denied. `release` only gives up the pre-execution reservation; it does not record task completion and must not be used as an exactly-once completion signal.
 

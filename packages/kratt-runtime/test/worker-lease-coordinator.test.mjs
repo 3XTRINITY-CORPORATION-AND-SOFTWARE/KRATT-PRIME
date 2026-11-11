@@ -46,6 +46,9 @@ test("expired lease reacquisition advances fence and rejects the stale holder", 
   const second = await leases.acquire({ ...fixture(), operationId: "acquire-2", ownerId: "worker-b" });
   assert.equal(second.ok, true);
   assert.equal(second.fencingToken, 2);
+  const replay = await leases.acquire(fixture());
+  assert.equal(replay.reason, "WORKER_LEASE_REPLAY_STALE");
+  assert.equal("fencingToken" in replay, false);
   const stale = await leases.renew({ operationId: "renew-stale", reservationKey: "task-idem-1", taskDigest,
     ownerId: "worker-a", fencingToken: acquired.fencingToken, ttlMs: 5_000 });
   assert.equal(stale.reason, "WORKER_FENCING_TOKEN_STALE");
