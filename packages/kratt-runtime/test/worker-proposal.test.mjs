@@ -195,4 +195,26 @@ test("partial saga can retry its durable ECK receipt while the original lease is
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("an adapter success without a verifiable ECK card is treated as audit failure", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kratt-worker-saga-invalid-receipt-"));
+  try {
+    let appends = 0;
+    const base = new DurableEvidenceRepository({ path: join(dir, "evidence.journal") });
+    const repository = { append: async event => {
+      appends += 1;
+      return appends === 2 ? { ok: true } : base.append(event);
+    } };
+    const coordinator = createWorkerLeaseCoordinator({ store: new PrimeStore({ path: join(dir, "leases.journal") }),
+      now: () => "2026-11-11T12:00:00.000Z" });
+    const proposal = await createWorkerProposal(fixture());
+    const result = await reserveAndAuditWorkerProposal({ repository, coordinator, proposal, rootId: "root-1", branchId: "branch-1",
+      actorId: "actor-1", ownerId: "trusted-runner-1", operationId: "saga-invalid-receipt-1", ttlMs: 5_000,
+      occurredAt: "2026-11-11T12:00:00Z" });
+    assert.equal(result.state, "BLOCKED");
+    assert.equal(result.leaseReleased, true);
+    assert.equal(result.dispatch, false);
+    assert.equal((await coordinator.status()).activeLeaseCount, 0);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 
