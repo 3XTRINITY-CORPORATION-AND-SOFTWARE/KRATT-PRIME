@@ -17,7 +17,7 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 | 4 | Reflected evidence snapshots | This branch: `feature/persisted-evidence-reflection-v1` | Rebuild branches from persisted evidence; validate root/branch/revision mappings against journal records; invariants must be executable checks with provenance, not caller-supplied booleans; deltas remain proposals. |
 | 5 | Evidence quality and calibration research | Blocked on representative labeled data | Pre-register evaluation set, dependency groups, decision thresholds, calibration metrics and confidence intervals; compare against baselines; retain abstention and selective-prediction failure reporting. No posterior claims before independent validation. |
 | 6 | Runtime operator surface | This branch: `feature/local-evidence-operator-api-v1` | Local-only CLI/API for inspect/index/verify; explicit repository path and immutable SHA; read-only default, bounded request sizes, redacted logs, readiness includes journal verification. |
-| 7 | Worker and Pico-Cloud preparation | Proposal and lease preparation on `feature/durable-worker-leases-fencing-v1` | Typed admission, metadata audit, durable idempotency reservations, bounded leases and fencing are implemented; remote dispatch remains blocked. See both Stage 7 docs. |
+| 7 | Worker and Pico-Cloud preparation | Proposal, lease, and recoverable audit preparation on `feature/durable-worker-leases-fencing-v1` | Typed admission, metadata audit, durable idempotency reservations, bounded leases and fencing are implemented; the proposal/lease/ECK saga compensates or reports partial state; remote dispatch remains blocked. See both Stage 7 docs. |
 | 8 | Hardware and MCU validation | Hardware-dependent | Named target board/toolchain, reproducible firmware build, hardware-in-loop evidence, resource and safety measurements; no algorithm or performance claim before measurement. |
 
 ## Rules across stages
@@ -52,10 +52,14 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 
 ## Stage 7.1 lease contract
 
-`createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. `reserveWorkerProposal` links only a policy-produced proposal object to its reservation key and digest. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Proposal ECK audit and lease-journal writes are not atomic with each other. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
+`createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. `reserveWorkerProposal` links only a policy-produced proposal object to its reservation key and digest. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
 
 ## Stage 7.2 lease observability
 
 The optional loopback-only `GET /leases/status` endpoint and `/health/ready` integration expose aggregate counts and integrity state only. `KRATT_LEASE_JOURNAL_PATH` must be an explicit absolute local path. Reservation keys, owners, task digests, fences and expiry times remain private. The endpoint is read-only and no lease mutation is exposed through HTTP.
+
+## Stage 7.3 proposal and lease audit saga
+
+`reserveAndAuditWorkerProposal` appends a deterministic metadata-only proposal ECK event, reserves its lease, then appends a deterministic lease receipt. These separate journals do not form a transaction. Receipt-write failure triggers a fenced compensating release; failed compensation returns `PARTIAL` with the bounded lease expiry, and an exact retry can persist the missing receipt while that lease remains current. Inputs to the retry include the original event timestamp. Recovery records evidence only and cannot dispatch. Process-crash reconciliation across both journals, lease-release audit, authenticated worker ownership and any side-effect boundary remain future gates.
 
 
