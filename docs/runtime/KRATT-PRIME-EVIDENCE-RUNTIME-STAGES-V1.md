@@ -54,4 +54,8 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 
 `createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. `reserveWorkerProposal` links only a policy-produced proposal object to its reservation key and digest. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Proposal ECK audit and lease-journal writes are not atomic with each other. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
 
+## Stage 7.2 lease observability
+
+The optional loopback-only `GET /leases/status` endpoint and `/health/ready` integration expose aggregate counts and integrity state only. `KRATT_LEASE_JOURNAL_PATH` must be an explicit absolute local path. Reservation keys, owners, task digests, fences and expiry times remain private. The endpoint is read-only and no lease mutation is exposed through HTTP.
+
 

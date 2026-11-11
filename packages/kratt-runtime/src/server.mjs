@@ -37,7 +37,7 @@ function queryInteger(url, key, fallback, maximum) {
   return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : null;
 }
 
-export async function handleOperatorRequest(request, { readiness, logger, evidenceRepository } = {}) {
+export async function handleOperatorRequest(request, { readiness, logger, evidenceRepository, leaseCoordinator } = {}) {
   let url;
   try { url = new URL(request.url, "http://127.0.0.1"); }
   catch { return { status: 400, body: { error: "REQUEST_INVALID" } }; }
@@ -50,12 +50,30 @@ export async function handleOperatorRequest(request, { readiness, logger, eviden
     return handleHealthRequest({ method: "GET", url: "/health/ready" }, { readiness: () => state, logger });
   }
 
-  const knownReadRoute = url.pathname === "/evidence" || url.pathname === "/evidence/verify";
+  const knownReadRoute = url.pathname === "/evidence" || url.pathname === "/evidence/verify" || url.pathname === "/leases/status";
   const knownHealthRoute = url.pathname === "/health/live" || url.pathname === "/health/ready";
   if (request.method !== "GET") return { status: knownReadRoute || knownHealthRoute ? 405 : 404,
     body: { error: knownReadRoute || knownHealthRoute ? "METHOD_NOT_ALLOWED" : "NOT_FOUND" },
     headers: knownReadRoute || knownHealthRoute ? { allow: "GET" } : {} };
   if (!knownReadRoute) return { status: 404, body: { error: "NOT_FOUND" } };
+  if (url.pathname === "/leases/status") {
+    if ([...url.searchParams.keys()].length) return { status: 400, body: { error: "QUERY_INVALID" } };
+    if (!leaseCoordinator || typeof leaseCoordinator.status !== "function") return { status: 503, body: { error: "LEASE_STORE_UNAVAILABLE" } };
+    try {
+      const state = await leaseCoordinator.status();
+      if (state?.ok !== true || state.dispatch !== false ||
+          !["reservationCount", "activeLeaseCount", "expiredLeaseCount", "availableReservationCount", "operationCount"]
+            .every(key => Number.isSafeInteger(state[key]) && state[key] >= 0)) {
+        return { status: 503, body: { error: "LEASE_STATUS_UNAVAILABLE" } };
+      }
+      return { status: 200, body: { ok: true, ...Object.fromEntries(
+        ["reservationCount", "activeLeaseCount", "expiredLeaseCount", "availableReservationCount", "operationCount"]
+          .map(key => [key, state[key]])), dispatch: false } };
+    } catch {
+      logger?.error("lease status unavailable", { code: "LEASE_STATUS_UNAVAILABLE" });
+      return { status: 503, body: { error: "LEASE_STATUS_UNAVAILABLE" } };
+    }
+  }
   if (!evidenceRepository) return { status: 503, body: { error: "EVIDENCE_STORE_UNAVAILABLE" } };
 
   if (url.pathname === "/evidence/verify") {
@@ -88,14 +106,26 @@ export async function handleOperatorRequest(request, { readiness, logger, eviden
   }
 }
 
-export function createRuntimeServer({ config, logger, readiness, evidenceRepository } = {}) {
+export function createRuntimeServer({ config, logger, readiness, evidenceRepository, leaseCoordinator } = {}) {
   if (!config || !LOOPBACK.has(config.host)) throw new TypeError("LOOPBACK_BIND_REQUIRED");
   const getReadiness = readiness ?? (async () => {
-    if (!evidenceRepository) return { ready: true, checks: { evidenceJournal: "unavailable" } };
-    try {
-      const result = await evidenceRepository.verify();
-      return { ready: result.ok === true, checks: { evidenceJournal: result.ok === true ? "ok" : "unavailable" } };
-    } catch { return { ready: false, checks: { evidenceJournal: "unavailable" } }; }
+    const checks = {};
+    let ready = true;
+    if (evidenceRepository) {
+      try {
+        const result = await evidenceRepository.verify();
+        checks.evidenceJournal = result.ok === true ? "ok" : "unavailable";
+        ready = ready && result.ok === true;
+      } catch { checks.evidenceJournal = "unavailable"; ready = false; }
+    } else checks.evidenceJournal = "unavailable";
+    if (leaseCoordinator) {
+      try {
+        const result = await leaseCoordinator.status();
+        checks.leaseJournal = result.ok === true ? "ok" : "unavailable";
+        ready = ready && result.ok === true;
+      } catch { checks.leaseJournal = "unavailable"; ready = false; }
+    }
+    return { ready, checks };
   });
   const server = createServer((request, response) => {
     response.setHeader("content-type", "application/json; charset=utf-8");
@@ -104,7 +134,7 @@ export function createRuntimeServer({ config, logger, readiness, evidenceReposit
     response.setHeader("referrer-policy", "no-referrer");
     response.setHeader("x-frame-options", "DENY");
     if (request.method !== "GET") request.resume();
-    void handleOperatorRequest(request, { readiness: getReadiness, logger, evidenceRepository }).then(result => {
+    void handleOperatorRequest(request, { readiness: getReadiness, logger, evidenceRepository, leaseCoordinator }).then(result => {
       for (const [key, value] of Object.entries(result.headers ?? {})) response.setHeader(key, value);
       response.writeHead(result.status).end(JSON.stringify(result.body));
     }).catch(() => {
@@ -131,4 +161,5 @@ export function createRuntimeServer({ config, logger, readiness, evidenceReposit
     close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
   });
 }
+
 

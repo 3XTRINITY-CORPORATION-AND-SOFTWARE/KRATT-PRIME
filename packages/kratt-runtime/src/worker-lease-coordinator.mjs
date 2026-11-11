@@ -183,6 +183,28 @@ export function createWorkerLeaseCoordinator({ store, now = () => new Date().toI
         return reservation ? Object.freeze({ ok: true, reservation: clone(reservation), executionStarted: false, dispatch: false })
           : Object.freeze({ ok: true, reservation: null, executionStarted: false, dispatch: false });
       });
+    },
+    async status() {
+      return enqueueForStore(store, async () => {
+        try {
+          await refresh();
+          let instant;
+          try { instant = now(); } catch { instant = null; }
+          if (!isUtc(instant)) return Object.freeze({ ok: false, reason: "WORKER_LEASE_CLOCK_INVALID", dispatch: false });
+          let activeLeaseCount = 0;
+          let expiredLeaseCount = 0;
+          let availableReservationCount = 0;
+          for (const reservation of reservations.values()) {
+            if (!reservation.lease) availableReservationCount += 1;
+            else if (Date.parse(reservation.lease.expiresAt) > Date.parse(instant)) activeLeaseCount += 1;
+            else expiredLeaseCount += 1;
+          }
+          return Object.freeze({ ok: true, reservationCount: reservations.size, activeLeaseCount,
+            expiredLeaseCount, availableReservationCount, operationCount: operations.size, dispatch: false });
+        } catch {
+          return Object.freeze({ ok: false, reason: "WORKER_LEASE_JOURNAL_UNAVAILABLE", dispatch: false });
+        }
+      });
     }
   });
 }

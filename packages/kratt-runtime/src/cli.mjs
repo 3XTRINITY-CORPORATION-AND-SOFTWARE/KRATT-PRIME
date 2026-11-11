@@ -7,6 +7,8 @@ import { createLocalGitRepositorySource } from "./local-git-source.mjs";
 import { createReadOnlyRepositoryIndexer } from "./repository-index.mjs";
 import { persistRepositoryIndexEvidence } from "./repository-evidence-pipeline.mjs";
 import { DurableEvidenceRepository } from "./durable-evidence.mjs";
+import { PrimeStore } from "../../kratt-core/src/prime-store.mjs";
+import { createWorkerLeaseCoordinator } from "./worker-lease-coordinator.mjs";
 import { createRuntimeServer } from "./server.mjs";
 
 const OPTIONS = {
@@ -51,7 +53,8 @@ async function runServe({ env, stdout, stderr }) {
   catch (error) { stderr.write(`${error.code ?? "CONFIGURATION_INVALID"}: ${error.message}\n`); return 1; }
   const logger = createLogger({ level: config.logLevel });
   const repository = config.journalPath ? new DurableEvidenceRepository({ path: config.journalPath }) : null;
-  const runtime = createRuntimeServer({ config, logger, evidenceRepository: repository });
+  const leaseCoordinator = config.leaseJournalPath ? createWorkerLeaseCoordinator({ store: new PrimeStore({ path: config.leaseJournalPath }) }) : null;
+  const runtime = createRuntimeServer({ config, logger, evidenceRepository: repository, leaseCoordinator });
   let stopping = false;
   let shutdownResult = 0;
   let timeout;
@@ -70,9 +73,11 @@ async function runServe({ env, stdout, stderr }) {
   const closed = new Promise(resolve => runtime.server.once("close", () => resolve(shutdownResult)));
   try {
     if (repository) await repository.open();
+    if (leaseCoordinator) await leaseCoordinator.open();
     const address = await runtime.listen();
     printJson(stdout, { ok: true, mode: "local", address: typeof address === "object" ? address.address : config.host,
-      port: typeof address === "object" ? address.port : config.port, evidenceStore: repository ? "configured" : "unavailable" });
+      port: typeof address === "object" ? address.port : config.port, evidenceStore: repository ? "configured" : "unavailable",
+      leaseStore: leaseCoordinator ? "configured" : "unavailable" });
     return await closed;
   } catch (error) {
     logger.error("runtime startup failed", { code: error?.code ?? "STARTUP_FAILED" });
@@ -147,4 +152,5 @@ export async function runOperatorCli(args = process.argv.slice(2), io = {}) {
 
 const isEntrypoint = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntrypoint) process.exitCode = await runOperatorCli();
+
 

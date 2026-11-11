@@ -35,3 +35,5 @@ Statistical calibration, MCU algorithms and remote worker execution remain out o
 
 The proposal-to-lease helper now binds reservation key and task digest. Proposal ECK audit and lease-journal persistence remain separate writes with no cross-store transaction. This limitation is acceptable only while dispatch is absent; any future execution path must define an atomic or recoverable audit protocol before it is enabled.
 
+The local operator may expose `GET /leases/status` when `KRATT_LEASE_JOURNAL_PATH` is explicitly configured. Its response contains only aggregate counts and `dispatch: false`; it excludes reservation, owner, task, fence and expiry identifiers. It is a read-only status view, not an authorization or control endpoint.
+

@@ -24,10 +24,14 @@ Indexing is a deliberate local journal write and requires all inputs, including 
 - `GET /health/ready`
 - `GET /evidence/verify`
 - `GET /evidence?after=0&limit=50`
+- `GET /leases/status`
 
 All other methods are rejected. The evidence listing returns card and source digests, not raw metadata, file paths, actor IDs or repository content. Without a configured journal path, evidence routes are unavailable. A configured path that does not exist is read as an empty journal; inspection does not create the file or its parent directory. The first explicit `index` append creates it.
+
+`GET /leases/status` is available only when `KRATT_LEASE_JOURNAL_PATH` names an absolute local PrimeStore journal. It reports aggregate reservation and lease counts plus the journal-operation count. It never returns reservation keys, owner IDs, task digests, fencing numbers, or expiry times. Readiness includes the lease journal's integrity check when configured. This API has no authentication beyond loopback binding, and the lease journal is not encrypted.
 
 ## Verification and limits
 
 The operator test suite exercises CLI validation and a full temporary local Git to ECK to journal flow, idempotent replay, safe evidence API projection, pagination bounds, and loopback-only binding. This remains a local reference operator surface: there is no user authentication, multi-user isolation, encryption, remote sync or multi-process journal coordination. Do not expose it beyond the local host.
+
 

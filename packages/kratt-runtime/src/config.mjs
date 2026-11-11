@@ -10,6 +10,7 @@ export function loadRuntimeConfig(env = process.env) {
   const logLevel = env.KRATT_LOG_LEVEL ?? "info";
   const mode = env.KRATT_RUNTIME_MODE ?? "local";
   const journalPath = env.KRATT_JOURNAL_PATH ?? null;
+  const leaseJournalPath = env.KRATT_LEASE_JOURNAL_PATH ?? null;
   if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
     throw new ConfigurationError("KRATT_HOST must be loopback; remote binding is not enabled");
   }
@@ -19,6 +20,10 @@ export function loadRuntimeConfig(env = process.env) {
   if (journalPath !== null && (typeof journalPath !== "string" || !isAbsolute(journalPath) || journalPath.length > 1024 || journalPath.includes("\0"))) {
     throw new ConfigurationError("KRATT_JOURNAL_PATH must be an absolute local path");
   }
-  return Object.freeze({ host, port: Number(portText), logLevel, mode, journalPath });
+  if (leaseJournalPath !== null && (typeof leaseJournalPath !== "string" || !isAbsolute(leaseJournalPath) || leaseJournalPath.length > 1024 || leaseJournalPath.includes("\0"))) {
+    throw new ConfigurationError("KRATT_LEASE_JOURNAL_PATH must be an absolute local path");
+  }
+  return Object.freeze({ host, port: Number(portText), logLevel, mode, journalPath, leaseJournalPath });
 }
+
 

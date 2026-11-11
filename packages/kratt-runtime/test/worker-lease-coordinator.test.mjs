@@ -114,3 +114,19 @@ test("exact operation input shape rejects getters without invoking them", async 
   assert.equal((await leases.acquire(hostile)).reason, "WORKER_LEASE_REQUEST_INVALID");
 }));
 
+test("lease status reports bounded aggregate counts without identifiers", async () => withStore(async path => {
+  let current = "2026-11-11T12:00:00.000Z";
+  const leases = createWorkerLeaseCoordinator({ store: new PrimeStore({ path }), now: () => current });
+  await leases.acquire(fixture());
+  const active = await leases.status();
+  assert.deepEqual(active, { ok: true, reservationCount: 1, activeLeaseCount: 1, expiredLeaseCount: 0,
+    availableReservationCount: 0, operationCount: 1, dispatch: false });
+  assert.equal("reservationKey" in active, false);
+  assert.equal("taskDigest" in active, false);
+  assert.equal("ownerId" in active, false);
+  current = "2026-11-11T12:00:05.000Z";
+  const expired = await leases.status();
+  assert.equal(expired.expiredLeaseCount, 1);
+  assert.equal(expired.activeLeaseCount, 0);
+}));
+

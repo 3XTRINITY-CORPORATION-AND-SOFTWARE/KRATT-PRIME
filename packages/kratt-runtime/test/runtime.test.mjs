@@ -10,11 +10,14 @@ import { createWorkerAdapter, proposePicoCloudRoute } from "../src/worker-contra
 test("configuration binds only to local interfaces and rejects unknown modes", () => {
   assert.equal(loadRuntimeConfig({}).host, "127.0.0.1");
   assert.equal(loadRuntimeConfig({}).journalPath, null);
+  assert.equal(loadRuntimeConfig({}).leaseJournalPath, null);
   assert.throws(() => loadRuntimeConfig({ KRATT_HOST: "0.0.0.0" }), /loopback/);
   assert.throws(() => loadRuntimeConfig({ KRATT_RUNTIME_MODE: "cloud" }), /local runtime/);
   assert.throws(() => loadRuntimeConfig({ KRATT_PORT: "70000" }), /65535/);
   assert.throws(() => loadRuntimeConfig({ KRATT_JOURNAL_PATH: "relative/journal" }), /absolute local path/);
+  assert.throws(() => loadRuntimeConfig({ KRATT_LEASE_JOURNAL_PATH: "relative/leases" }), /absolute local path/);
   assert.equal(loadRuntimeConfig({ KRATT_JOURNAL_PATH: resolve("journal.ndjson") }).journalPath, resolve("journal.ndjson"));
+  assert.equal(loadRuntimeConfig({ KRATT_LEASE_JOURNAL_PATH: resolve("leases.ndjson") }).leaseJournalPath, resolve("leases.ndjson"));
 });
 
 test("structured logger filters sensitive field names and bounds primitive fields", () => {
@@ -61,6 +64,18 @@ test("operator API is read-only, bounded, loopback-only and omits repository pat
     readiness: async () => ({ ready: true, checks: { evidenceJournal: "ok" } }) });
   assert.equal(ready.status, 200);
   assert.throws(() => createRuntimeServer({ config: { host: "0.0.0.0", port: 4317 } }), /LOOPBACK_BIND_REQUIRED/);
+  const leaseCoordinator = { async status() { return { ok: true, reservationCount: 3, activeLeaseCount: 1, expiredLeaseCount: 1,
+    availableReservationCount: 1, operationCount: 9, dispatch: false, ownerId: "private-owner", taskDigest: `sha256:${"a".repeat(64)}` }; } };
+  const leaseStatus = await handleOperatorRequest({ method: "GET", url: "/leases/status" }, { leaseCoordinator });
+  assert.equal(leaseStatus.status, 200);
+  assert.equal(leaseStatus.body.activeLeaseCount, 1);
+  assert.equal("ownerId" in leaseStatus.body, false);
+  assert.equal("taskDigest" in leaseStatus.body, false);
+  assert.equal("reservationKey" in leaseStatus.body, false);
+  assert.equal((await handleOperatorRequest({ method: "GET", url: "/leases/status?owner=private-owner" }, { leaseCoordinator })).status, 400);
+  const hidden = await handleOperatorRequest({ method: "GET", url: "/leases/status" });
+  assert.equal(hidden.status, 503);
+  assert.equal((await handleOperatorRequest({ method: "POST", url: "/leases/status" }, { leaseCoordinator })).status, 405);
 });
 
 test("runtime server serves the inspection API only on loopback", async () => {
@@ -68,7 +83,9 @@ test("runtime server serves the inspection API only on loopback", async () => {
     evidenceHeadHash: "0".repeat(64), journalEntries: 0, journalHeadHash: "0".repeat(64),
     encrypted: false, remoteSync: false, scope: "SINGLE_PROCESS_LOCAL_JOURNAL" }; },
   async list() { return { ok: true, count: 0, cards: [] }; } };
-  const runtime = createRuntimeServer({ config: { host: "127.0.0.1", port: 0 }, evidenceRepository: repository });
+  const leaseCoordinator = { async status() { return { ok: true, reservationCount: 2, activeLeaseCount: 1, expiredLeaseCount: 0,
+    availableReservationCount: 1, operationCount: 3, dispatch: false }; } };
+  const runtime = createRuntimeServer({ config: { host: "127.0.0.1", port: 0 }, evidenceRepository: repository, leaseCoordinator });
   try {
     const address = await runtime.listen();
     const baseUrl = `http://127.0.0.1:${address.port}`;
@@ -76,6 +93,11 @@ test("runtime server serves the inspection API only on loopback", async () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
     assert.equal((await response.json()).count, 0);
+    const leases = await fetch(`${baseUrl}/leases/status`);
+    assert.equal(leases.status, 200);
+    assert.equal((await leases.json()).activeLeaseCount, 1);
+    const ready = await fetch(`${baseUrl}/health/ready`);
+    assert.deepEqual((await ready.json()).checks, { evidenceJournal: "ok", leaseJournal: "ok" });
     const denied = await fetch(`${baseUrl}/evidence/verify`, { method: "POST" });
     assert.equal(denied.status, 405);
     assert.equal(denied.headers.get("allow"), "GET");
@@ -106,5 +128,6 @@ test("worker and Pico-Cloud contracts stay describe-only and dry-run", async () 
   assert.equal(result.descriptor.acceptedShape, "job-1");
   assert.equal(result.executionStarted, false);
 });
+
 
 
