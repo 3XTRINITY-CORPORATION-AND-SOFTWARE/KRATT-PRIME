@@ -11,7 +11,7 @@ on:
       - 'docs/runtime/WORKER-PICO-CLOUD-PROPOSALS-V1.md'
       - '.github/workflows/worker-proposals.yml'
   pull_request:
-    branches: [feature/policy-bound-worker-proposals-v1]
+    branches: [feature/local-evidence-operator-api-v1]
     paths:
       - 'packages/kratt-runtime/src/worker-contract.mjs'
       - 'packages/kratt-runtime/src/worker-proposal.mjs'

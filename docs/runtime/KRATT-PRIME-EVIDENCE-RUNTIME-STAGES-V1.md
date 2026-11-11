@@ -46,10 +46,7 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 - A statistically justified aggregation policy and operational error thresholds.
 - A supported hardware matrix and MCU algorithm requirements.
 
-
-
-
 ## Stage 7 proposal contract
 
-createWorkerProposal validates exact versioned inputs, intersects authority scopes and checks deadlines, cost, data class and kill-switch state. Remote admission requires exact actor/task/worker/target/data-class-bound consent and approval accepted by injected trusted verifiers. Every result remains non-dispatching. Proposal outcomes can be recorded as metadata-only durable ECK events with deterministic idempotent IDs. The verifiers, durable dispatch reservations, worker isolation, cancellation/fencing and transport are not implemented; see WORKER-PICO-CLOUD-PROPOSALS-V1.md before any future execution work.
+`createWorkerProposal` validates exact versioned inputs, intersects authority scopes and checks deadlines, cost, data class and kill-switch state. Remote admission requires exact actor/task/worker/target/data-class-bound consent and approval accepted by injected trusted verifiers. Every result remains non-dispatching. Proposal outcomes can be recorded as metadata-only durable ECK events with deterministic idempotent IDs. The verifiers, durable dispatch reservations, worker isolation, cancellation/fencing and transport are not implemented; see `WORKER-PICO-CLOUD-PROPOSALS-V1.md` before any future execution work.
 
