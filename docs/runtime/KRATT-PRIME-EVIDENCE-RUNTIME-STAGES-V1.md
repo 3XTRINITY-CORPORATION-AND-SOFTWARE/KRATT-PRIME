@@ -17,7 +17,7 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 | 4 | Reflected evidence snapshots | This branch: `feature/persisted-evidence-reflection-v1` | Rebuild branches from persisted evidence; validate root/branch/revision mappings against journal records; invariants must be executable checks with provenance, not caller-supplied booleans; deltas remain proposals. |
 | 5 | Evidence quality and calibration research | Blocked on representative labeled data | Pre-register evaluation set, dependency groups, decision thresholds, calibration metrics and confidence intervals; compare against baselines; retain abstention and selective-prediction failure reporting. No posterior claims before independent validation. |
 | 6 | Runtime operator surface | This branch: `feature/local-evidence-operator-api-v1` | Local-only CLI/API for inspect/index/verify; explicit repository path and immutable SHA; read-only default, bounded request sizes, redacted logs, readiness includes journal verification. |
-| 7 | Worker and Pico-Cloud preparation | After threat model and privacy review | Describe/plan contracts first; no dispatch until capability approval, data classification, consent, budgets, idempotency and audit gates are tested. |
+| 7 | Worker and Pico-Cloud preparation | Proposal-only on `feature/policy-bound-worker-proposals-v1` | Typed admission and metadata audit are implemented; remote dispatch remains blocked. See `WORKER-PICO-CLOUD-PROPOSALS-V1.md`. |
 | 8 | Hardware and MCU validation | Hardware-dependent | Named target board/toolchain, reproducible firmware build, hardware-in-loop evidence, resource and safety measurements; no algorithm or performance claim before measurement. |
 
 ## Rules across stages
@@ -46,4 +46,10 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 - A statistically justified aggregation policy and operational error thresholds.
 - A supported hardware matrix and MCU algorithm requirements.
 
+
+
+
+## Stage 7 proposal contract
+
+createWorkerProposal validates exact versioned inputs, intersects authority scopes and checks deadlines, cost, data class and kill-switch state. Remote admission requires exact actor/task/worker/target/data-class-bound consent and approval accepted by injected trusted verifiers. Every result remains non-dispatching. Proposal outcomes can be recorded as metadata-only durable ECK events with deterministic idempotent IDs. The verifiers, durable dispatch reservations, worker isolation, cancellation/fencing and transport are not implemented; see WORKER-PICO-CLOUD-PROPOSALS-V1.md before any future execution work.
 

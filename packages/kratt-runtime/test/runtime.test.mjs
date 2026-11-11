@@ -97,10 +97,14 @@ test("repository index is pinned to immutable revisions, bounded, and has no wri
 });
 
 test("worker and Pico-Cloud contracts stay describe-only and dry-run", async () => {
-  assert.equal(proposePicoCloudRoute({ taskId: "job-1", inputDigest: `sha256:${"a".repeat(64)}`, target: "remote" }).dispatch, false);
+  const remote = proposePicoCloudRoute({ taskId: "job-1", inputDigest: `sha256:${"a".repeat(64)}`, target: "remote", dataTransferApproved: true });
+  assert.equal(remote.dispatch, false);
+  assert.equal(remote.state, "BLOCKED");
   const worker = createWorkerAdapter({ describe: async request => ({ acceptedShape: request.taskId }) });
-  const result = await worker.describe({ taskId: "job-1", deadlineMs: 100_000 });
+  assert.equal((await worker.describe({ taskId: "job-1", deadlineMs: 100_000 })).reason, "WORKER_DEADLINE_INVALID");
+  const result = await worker.describe({ taskId: "job-1", deadlineMs: 30_000 });
   assert.equal(result.descriptor.acceptedShape, "job-1");
   assert.equal(result.executionStarted, false);
 });
+
 

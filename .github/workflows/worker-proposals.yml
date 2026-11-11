@@ -1,0 +1,44 @@
+name: Worker proposal checks
+
+on:
+  push:
+    branches: [feature/policy-bound-worker-proposals-v1]
+    paths:
+      - 'packages/kratt-runtime/src/worker-contract.mjs'
+      - 'packages/kratt-runtime/src/worker-proposal.mjs'
+      - 'packages/kratt-runtime/test/worker-proposal.test.mjs'
+      - 'packages/kratt-runtime/test/runtime.test.mjs'
+      - 'docs/runtime/WORKER-PICO-CLOUD-PROPOSALS-V1.md'
+      - '.github/workflows/worker-proposals.yml'
+  pull_request:
+    branches: [feature/policy-bound-worker-proposals-v1]
+    paths:
+      - 'packages/kratt-runtime/src/worker-contract.mjs'
+      - 'packages/kratt-runtime/src/worker-proposal.mjs'
+      - 'packages/kratt-runtime/test/worker-proposal.test.mjs'
+      - 'packages/kratt-runtime/test/runtime.test.mjs'
+      - 'docs/runtime/WORKER-PICO-CLOUD-PROPOSALS-V1.md'
+      - '.github/workflows/worker-proposals.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-proposals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
