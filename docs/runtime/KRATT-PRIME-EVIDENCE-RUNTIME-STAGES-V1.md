@@ -17,7 +17,7 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 | 4 | Reflected evidence snapshots | This branch: `feature/persisted-evidence-reflection-v1` | Rebuild branches from persisted evidence; validate root/branch/revision mappings against journal records; invariants must be executable checks with provenance, not caller-supplied booleans; deltas remain proposals. |
 | 5 | Evidence quality and calibration research | Blocked on representative labeled data | Pre-register evaluation set, dependency groups, decision thresholds, calibration metrics and confidence intervals; compare against baselines; retain abstention and selective-prediction failure reporting. No posterior claims before independent validation. |
 | 6 | Runtime operator surface | This branch: `feature/local-evidence-operator-api-v1` | Local-only CLI/API for inspect/index/verify; explicit repository path and immutable SHA; read-only default, bounded request sizes, redacted logs, readiness includes journal verification. |
-| 7 | Worker and Pico-Cloud preparation | Proposal-only on `feature/policy-bound-worker-proposals-v1` | Typed admission and metadata audit are implemented; remote dispatch remains blocked. See `WORKER-PICO-CLOUD-PROPOSALS-V1.md`. |
+| 7 | Worker and Pico-Cloud preparation | Proposal and lease preparation on `feature/durable-worker-leases-fencing-v1` | Typed admission, metadata audit, durable idempotency reservations, bounded leases and fencing are implemented; remote dispatch remains blocked. See both Stage 7 docs. |
 | 8 | Hardware and MCU validation | Hardware-dependent | Named target board/toolchain, reproducible firmware build, hardware-in-loop evidence, resource and safety measurements; no algorithm or performance claim before measurement. |
 
 ## Rules across stages
@@ -48,5 +48,10 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 
 ## Stage 7 proposal contract
 
-`createWorkerProposal` validates exact versioned inputs, intersects authority scopes and checks deadlines, cost, data class and kill-switch state. Remote admission requires exact actor/task/worker/target/data-class-bound consent and approval accepted by injected trusted verifiers. Every result remains non-dispatching. Proposal outcomes can be recorded as metadata-only durable ECK events with deterministic idempotent IDs. The verifiers, durable dispatch reservations, worker isolation, cancellation/fencing and transport are not implemented; see `WORKER-PICO-CLOUD-PROPOSALS-V1.md` before any future execution work.
+`createWorkerProposal` validates exact versioned inputs, intersects authority scopes and checks deadlines, cost, data class and kill-switch state. Remote admission requires exact actor/task/worker/target/data-class-bound consent and approval accepted by injected trusted verifiers. Every result remains non-dispatching. Proposal outcomes can be recorded as metadata-only durable ECK events with deterministic idempotent IDs. Trusted cryptographic verifiers, worker isolation, cancellation and transport are not implemented; see `WORKER-PICO-CLOUD-PROPOSALS-V1.md` before any future execution work.
+
+## Stage 7.1 lease contract
+
+`createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
+
 
