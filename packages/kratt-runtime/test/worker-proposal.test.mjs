@@ -161,4 +161,38 @@ test("lease audit failure compensates by releasing the lease and never dispatche
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("partial saga can retry its durable ECK receipt while the original lease is still current", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kratt-worker-saga-recovery-"));
+  try {
+    let appends = 0;
+    const repository = new DurableEvidenceRepository({ path: join(dir, "evidence.journal") });
+    const faultingRepository = { append: async event => {
+      appends += 1;
+      if (appends === 2) throw new Error("temporary receipt outage");
+      return repository.append(event);
+    } };
+    const durableCoordinator = createWorkerLeaseCoordinator({ store: new PrimeStore({ path: join(dir, "leases.journal") }),
+      now: () => "2026-11-11T12:00:00.000Z" });
+    const proposal = await createWorkerProposal(fixture());
+    const args = { repository: faultingRepository, coordinator: {
+      acquire: request => durableCoordinator.acquire(request),
+      release: async () => { throw new Error("injected release outage"); }
+    }, proposal, rootId: "root-1", branchId: "branch-1", actorId: "actor-1", ownerId: "trusted-runner-1",
+    operationId: "saga-recover-1", ttlMs: 5_000, occurredAt: "2026-11-11T12:00:00Z" };
+    const partial = await reserveAndAuditWorkerProposal(args);
+    assert.equal(partial.state, "PARTIAL");
+    assert.equal(partial.leaseReleased, false);
+    assert.equal(partial.dispatch, false);
+    assert.ok(partial.leaseExpiresAt);
+
+    const recovered = await reserveAndAuditWorkerProposal({ ...args, repository });
+    assert.equal(recovered.ok, true);
+    assert.equal(recovered.state, "RESERVED");
+    assert.equal(recovered.fencingToken, 1);
+    assert.equal(recovered.dispatch, false);
+    assert.equal(recovered.executionStarted, false);
+    assert.equal((await repository.list({ after: 0, limit: 10 })).cards.length, 2);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 
