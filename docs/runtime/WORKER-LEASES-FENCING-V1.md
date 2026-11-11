@@ -18,14 +18,14 @@ Every result carries `dispatch: false`; successful lease results also carry `exe
 
 ## Persistence and consistency limits
 
-Operations are stored as versioned records in the existing hash-chained local journal. The coordinator serializes operations from multiple coordinator objects that share the same `PrimeStore` object within one Node.js process. The current store is single-writer and is not a transactional compare-and-swap across processes or machines. Do not share one journal between processes, use network filesystems, or infer distributed mutual exclusion from this implementation.
+Operations are stored as versioned records in the existing hash-chained local journal. The coordinator serializes operations from multiple coordinator objects that share the same `PrimeStore` object within one Node.js process. PrimeStore also obtains an exclusive lock file for each append, so overlapping or stale-head writers fail before adding a journal record. A process crash can leave a lock file behind; inspect it and confirm its owner is gone before removing it manually. This append lock is not a multi-operation transaction or a cross-host lease protocol. Do not use network filesystems or infer distributed mutual exclusion from it.
 
-Records are append-only and the log has no retention or compaction policy yet. The journal is not encrypted. Protect its file and parent directory using host access controls. A tampered, malformed or stale journal causes the operation to fail rather than reconstruct a guessed state.
+Records are append-only and the log has no retention or compaction policy yet. The journal and its temporary writer-lock file are not encrypted. Protect the journal directory using host access controls. A tampered, malformed, stale or concurrently written journal causes the operation to fail rather than reconstruct a guessed state.
 
 ## Remaining gates before any execution
 
 - Authenticated worker principals and owner identity binding from trusted server context.
-- Cross-process atomic transactions or a reviewed single-writer service boundary.
+- Multi-operation cross-process transactions or a reviewed single-writer service boundary.
 - Completion/failure terminal states, retry semantics and durable exactly-once side-effect design (exactly-once is not claimed here).
 - Fencing enforced by each side-effect target, plus kill-switch recheck and cancellation before effects.
 - Leases integrated with the Stage 7 proposal and ECK audit path, while ensuring audit failure blocks any future dispatch.

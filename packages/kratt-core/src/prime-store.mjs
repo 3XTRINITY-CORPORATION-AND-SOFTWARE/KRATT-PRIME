@@ -1,5 +1,5 @@
 /** PrimeStore v1: append-only, hash-chained local journal. No cloud sync or encryption claim. */
-import { open, readFile, rename, mkdir } from "node:fs/promises";
+import { open, readFile, mkdir, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
 const digest = value => createHash("sha256").update(value).digest("hex");
@@ -44,15 +44,29 @@ export class PrimeStore {
     const task = this.#tail.then(async () => {
       await this.open();
       if (!validKey(idempotencyKey) || !validKey(key)) throw new TypeError("STORE_KEY_INVALID");
-      await this.#readVerifiedEntries();
-      if (this.#ids.has(idempotencyKey)) return Object.freeze({ ok:true, duplicate:true, sequence:null });
-      const next = this.#sequence + 1, payload = { sequence:next,id:idempotencyKey,key,value,previousHash:this.#head };
-      const entry = { ...payload, hash:digest(canonical(payload)) };
       await mkdir(dirname(this.#path), { recursive: true });
-      const file = await open(this.#path, "a", 0o600);
-      try { await file.writeFile(canonical(entry) + "\n", "utf8"); await file.sync(); } finally { await file.close(); }
-      this.#sequence = next; this.#head = entry.hash; this.#ids.add(idempotencyKey);
-      return Object.freeze({ ok:true, duplicate:false, sequence:next, hash:entry.hash });
+      const lockPath = `${this.#path}.writer-lock`;
+      let lock;
+      try { lock = await open(lockPath, "wx", 0o600); }
+      catch (error) {
+        if (error?.code === "EEXIST") throw new Error("STORE_WRITER_LOCKED");
+        throw error;
+      }
+      try {
+        await lock.writeFile(canonical({ pid: process.pid, acquiredAt: new Date().toISOString() }) + "\n", "utf8");
+        await lock.sync();
+        await this.#readVerifiedEntries();
+        if (this.#ids.has(idempotencyKey)) return Object.freeze({ ok:true, duplicate:true, sequence:null });
+        const next = this.#sequence + 1, payload = { sequence:next,id:idempotencyKey,key,value,previousHash:this.#head };
+        const entry = { ...payload, hash:digest(canonical(payload)) };
+        const file = await open(this.#path, "a", 0o600);
+        try { await file.writeFile(canonical(entry) + "\n", "utf8"); await file.sync(); } finally { await file.close(); }
+        this.#sequence = next; this.#head = entry.hash; this.#ids.add(idempotencyKey);
+        return Object.freeze({ ok:true, duplicate:false, sequence:next, hash:entry.hash });
+      } finally {
+        try { await lock.close(); }
+        finally { await unlink(lockPath); }
+      }
     });
     this.#tail = task.catch(() => {}); return task;
   }
@@ -70,4 +84,5 @@ export class PrimeStore {
     return Object.freeze({loaded:true,entries:this.#sequence,headHash:this.#head,encrypted:false,remoteSync:false});
   }
 }
+
 

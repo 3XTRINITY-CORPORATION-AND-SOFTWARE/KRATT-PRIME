@@ -11,7 +11,7 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 | Stage | Focus | State | Acceptance gate |
 | --- | --- | --- | --- |
 | 0 | Runtime and core contracts | Present in prior feature branches | Node 22 entry/config/logging/health/shutdown; typed evidence and branch contracts; current package tests pass. |
-| 1 | Durable ECK journal | Present in `feature/durable-evidence-projection-v1` | Restart recovery, corruption rejection, idempotency, single-writer limitation documented. |
+| 1 | Durable ECK journal | Present in `feature/durable-evidence-projection-v1`; writer-lock hardening on this branch | Restart recovery, corruption rejection, idempotency; exclusive local writer lock rejects concurrent/stale writers. A crash-stale lock needs operator recovery; no multi-host or transaction guarantee. |
 | 2 | Local repository evidence source | Present in `feature/local-git-eck-index-v1` | Fixed shell-free Git reads; immutable revision; bounded metadata index; secret-path filter; ECK provenance to root and branch. |
 | 3 | Durable repository-index pipeline | This branch: `feature/repository-index-eck-durable-v1` | Pinned metadata becomes ECK events, persisted one-by-one; exact retry is idempotent; partial writes report progress and can resume with identical inputs. |
 | 4 | Reflected evidence snapshots | This branch: `feature/persisted-evidence-reflection-v1` | Rebuild branches from persisted evidence; validate root/branch/revision mappings against journal records; invariants must be executable checks with provenance, not caller-supplied booleans; deltas remain proposals. |

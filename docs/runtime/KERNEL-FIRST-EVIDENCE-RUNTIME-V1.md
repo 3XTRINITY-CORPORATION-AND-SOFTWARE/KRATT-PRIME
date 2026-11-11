@@ -16,7 +16,7 @@ Set optional `KRATT_*` values from `.env.example` in the process environment, th
 - Adds Bayesian log-odds scaffolding that abstains unless each observation carries an explicit calibration identifier and positive likelihood ratio. Records in one dependency group are not multiplied; conflicting records in a group yield `CONFLICTED` and no posterior.
 - Adds an injected repository index interface pinned to full commit SHA, capped file/byte budgets, content digests and no write method. It stores metadata only and does not send content anywhere.
 - Adds worker and Pico-Cloud description/proposal interfaces. Dispatch remains false; remote targets require an explicit transfer approval signal and still produce no execution.
-- `packages/kratt-runtime/src/durable-evidence.mjs` now persists validated ECK cards through the existing fsync'd PrimeStore journal and rebuilds an in-memory projection on open. This is a single-process local journal adapter, not a transactional database or multi-process lock.
+- `packages/kratt-runtime/src/durable-evidence.mjs` persists validated ECK cards through the fsync'd PrimeStore journal and rebuilds an in-memory projection on open. PrimeStore now takes an exclusive local writer-lock file for each append and rejects overlapping or stale writers before changing the journal. A crash can leave a stale lock that requires manual review and recovery. This is still not a transactional database or a distributed lease service.
 
 ## Truth and status vocabulary
 
@@ -33,3 +33,4 @@ The root claim is the versioned canonical assertion. `OBSERVED`, `INFERRED`, `CO
 ## Security and dependency policy
 
 This increment adds no dependencies. Preserve `package-lock.json` as the npm lockfile authority and use `npm ci`; Node is constrained by the existing `.nvmrc` and `engines`. Any dependency addition must justify necessity, declare a reviewed supported semver range, update the npm lockfile with npm, and receive vulnerability/license review before merge. Do not log environment contents or secrets. Public bind, remote data transfer and external mutation require separate reviewed capability and approval work.
+
