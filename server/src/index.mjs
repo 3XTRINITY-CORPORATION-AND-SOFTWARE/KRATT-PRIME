@@ -1,8 +1,14 @@
 import { createServerApp } from "./app.mjs";
 import { loadServerConfig } from "./config.mjs";
+import { createInMemoryAuditAdapter } from "./audit-adapter.mjs";
+import { createInMemoryStatusRegistry } from "./status-registry.mjs";
+import { createPolicyGate } from "./policy-gate.mjs";
 
 const config = loadServerConfig();
-const server = createServerApp();
+const statusRegistry = createInMemoryStatusRegistry();
+const auditAdapter = createInMemoryAuditAdapter();
+const policyGate = createPolicyGate();
+const server = createServerApp({ statusRegistry, auditAdapter, policyGate });
 
 server.on("error", () => {
   // Avoid logging request data, configuration values, or internal exception details.

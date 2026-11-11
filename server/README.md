@@ -1,11 +1,11 @@
 # KRATT PRIME server foundation
 
-This package is a small, read-only Node.js HTTP starting point kept separate from the Vite/AURA frontend.
+Small, local-only Node.js HTTP server kept separate from the Vite/AURA frontend.
 
 ## Run locally
 
-Requires Node.js 22. Start with `npm run server`. Defaults bind only to `127.0.0.1:3000`; set `HOST` only to a loopback address and `PORT` explicitly when needed. `PORT=0` asks the operating system for an available port.
+Requires Node.js 22. Run `npm run server`. Defaults to `127.0.0.1:3000`; non-loopback `HOST` values are rejected. `PORT=0` requests an available local port.
 
-See [API-CONTRACT.md](API-CONTRACT.md) for the route contract and limitations. The foundation has no authentication, task admission or execution, database, provider, or deployment integration. Do not expose it publicly or treat health/status routes as an authorization boundary.
+See [API-CONTRACT.md](API-CONTRACT.md) for routes and limits. Status and audit adapters are in-memory demo interfaces. No authentication, persistence, task admission, execution, provider integration, or deployment is enabled. Never expose this server publicly.
 
-Run tests with `npm test`.
+Run `npm test` for core and server tests.

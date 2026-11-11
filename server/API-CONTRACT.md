@@ -1,35 +1,61 @@
 # KRATT PRIME internal API contract — v1 foundation
 
-Status: local foundation contract; not an authenticated or production API.
+Status: local, loopback-only foundation contract. This is not an authenticated or production API.
 
-The server binds to loopback by default and rejects non-loopback `HOST` values. It exposes no CORS policy, credentials, task queue, provider connector, task execution, or external writes. Do not put this endpoint on a public interface or proxy it publicly.
+The server is composed from five in-process modules. Its status representation is a bounded 5×5 matrix (five module rows by five fixed fields); no worker processes are started. In-memory status and audit state is lost on restart.
 
 ## Routes
 
-| Method | Path | Purpose | Side effects |
+| Method | Path | Purpose | Effect |
 |---|---|---|---|
-| `GET`, `HEAD` | `/health/live` (also `/health`) | Process liveness | None |
-| `GET`, `HEAD` | `/health/ready` | Static foundation readiness; states execution is disabled | None |
-| `GET`, `HEAD` | `/v1/status` | Version and bounded capability summary | None |
-| `GET`, `HEAD` | `/v1/audit/status` | Audit adapter availability and chain-integrity summary; no event data | None |
-| `POST` | `/v1/tasks/validate` | Validate a JSON KRATT task envelope only | None; never admission or execution |
+| `GET`, `HEAD` | `/health/live` (`/health`) | Process liveness | Read-only |
+| `GET`, `HEAD` | `/health/ready` | Static readiness and execution-disabled flag | Read-only |
+| `GET`, `HEAD` | `/v1/status` | Version, capabilities and five-row module status matrix | Read-only |
+| `GET`, `HEAD` | `/v1/audit/status` | Audit availability, in-memory chain integrity and head sequence | Read-only |
+| `POST` | `/v1/tasks/validate` | Validate a canonical KRATT task envelope | No persistence, admission or execution |
+| `POST` | `/v1/tasks/intake` | Validate, ask the server-owned policy gate, append a minimal audit event | No admission or execution |
 
-All responses are JSON with `Cache-Control: no-store`. Unknown routes return `NOT_FOUND`; unsupported methods return `METHOD_NOT_ALLOWED`. Request bodies are limited to 32 KiB and must use `application/json`. Errors do not return exception details or request content.
+Responses are JSON with `Cache-Control: no-store`; request bodies are limited to 32 KiB and require `application/json`. Errors contain stable codes only. No CORS, credential, provider, queue or task executor is configured.
 
-## Task validation response
+## Five-by-five status matrix
 
-Valid envelope: `200` with `valid: true`, `admitted: false`, and `executionStarted: false`.
+`GET /v1/status` returns exactly five module rows. Each row has five fields: `moduleId`, `state`, `updatedAt`, `capabilities`, and `executionEnabled`. The capability labels are fixed by the server, not request data. Status registry writes exist only as an in-process composition interface and are not exposed as an HTTP mutation route.
 
-Invalid envelope: `400` with validator error codes. Malformed JSON is rejected. Validation does not authenticate a principal, load trusted context, authorize, admit, persist, enqueue, or execute the task. This endpoint is a schema-checking contract only.
+## Intake contract
 
-## Trusted configuration
+`POST /v1/tasks/intake` accepts exactly one `kratt-prime/v0.1` task envelope. Client-supplied authority, policy results, identities, or execution instructions are not trusted. The validated task is sent to a server-injected policy evaluator; there is no HTTP field for trusted context or policy override.
 
-`HOST`, `PORT`, and `NODE_ENV` are the only consumed settings. Defaults are `127.0.0.1:3000` and `development`. `HOST` must be a loopback address (`localhost`, `::1`, or IPv4 `127.0.0.0/8`); public binding is intentionally not supported. The loader reads the process environment only; it does not parse `.env` files and accepts no secrets.
+Response always explicitly states `admitted: false` and `executionStarted: false`. If policy runtime is absent or invalid, response is fail-closed (`503`, `BLOCKED`). A policy `ALLOW` is an advisory result only; it is not an admission or execution grant. A minimal event is appended before a response; if audit append fails, intake returns `503` and remains not admitted. No task is enqueued or retained by this API.
 
-## Audit contract
+Example response shape:
 
-The composition root may inject a read-only object implementing `verify()` and optionally a non-negative integer `size`. The endpoint returns only availability, integrity state and head sequence. The current evidence ledger is an in-memory local-simulation adapter, not durable, signed or production audit storage. With no valid adapter the endpoint returns `503 AUDIT_UNAVAILABLE`.
+```json
+{
+  "ok": false,
+  "apiVersion": "v1",
+  "taskId": "inventory-17",
+  "valid": true,
+  "policy": {
+    "decision": "BLOCKED",
+    "reason": "POLICY_RUNTIME_NOT_CONFIGURED",
+    "executionStarted": false
+  },
+  "admitted": false,
+  "executionStarted": false
+}
+```
 
-## Deferred before any real internal API
+## Module interfaces
 
-Authentication and principal resolution; trusted context/policy composition; rate limiting; durable audit storage; request-id and idempotency policy; task admission/queue lifecycle; authorization, cancellation and kill-switch enforcement; observability and deployment review. Never interpret a successful schema validation as an execution grant.
+- `createInMemoryStatusRegistry()` — fixed module catalogue, validated state transitions, immutable 5×5 snapshots.
+- `createInMemoryAuditAdapter()` — append-only mock backed by KRATT's hash-chained `EvidenceLedger`; exposes append decision, verify, and size only.
+- `createPolicyGate({ evaluator })` — server-owned evaluator seam; fail-closed when absent, exceptions or malformed results; never executes.
+- `createServerApp({ statusRegistry, auditAdapter, policyGate })` — HTTP composition seam; task schema validation uses KRATT core validator.
+
+These mocks are for local development and tests. The evidence ledger is in-memory, unsigned and non-durable; its hash chain is not a production audit guarantee.
+
+## Trusted configuration and deployment boundary
+
+Only `HOST`, `PORT`, and `NODE_ENV` are consumed. Default bind is `127.0.0.1:3000`; non-loopback hosts are rejected. No `.env` parser or secrets are part of this package. Do not expose directly or through a public proxy.
+
+Before any real API: authentication/principal resolution, reviewed policy runtime and trusted-context loader, durable transactional audit, rate limiting, idempotency/replay semantics, cancellation and kill-switch enforcement, operational monitoring, backup/restore and security review must be separately implemented and tested. Task execution and external writes remain disabled.
