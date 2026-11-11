@@ -33,7 +33,7 @@ Records are append-only and the log has no retention or compaction policy yet. T
 
 Statistical calibration, MCU algorithms and remote worker execution remain out of scope.
 
-The proposal-to-lease helper now binds reservation key and task digest. Proposal ECK audit and lease-journal persistence remain separate writes with no cross-store transaction. This limitation is acceptable only while dispatch is absent; any future execution path must define an atomic or recoverable audit protocol before it is enabled.
+`reserveAndAuditWorkerProposal` records proposal intent in ECK, reserves the durable lease, then writes a lease receipt to ECK. These are not one transaction. If the receipt write fails, the helper attempts a fenced compensating release; it returns `BLOCKED` only when that release succeeds, otherwise `PARTIAL` and the lease expiry for operator reconciliation. A crash between lease persistence and its ECK receipt can leave a proposal plus an unreceipted lease until its bounded TTL expires. No dispatch path exists, and future execution must reconcile this state before it can be enabled. Retrying the exact operation is idempotent while its lease remains current; expired replays are denied and require a new operation identifier.
 
 The local operator may expose `GET /leases/status` when `KRATT_LEASE_JOURNAL_PATH` is explicitly configured. Its response contains only aggregate counts and `dispatch: false`; it excludes reservation, owner, task, fence and expiry identifiers. It is a read-only status view, not an authorization or control endpoint.
 

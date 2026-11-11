@@ -9,6 +9,7 @@ const DATA_CLASSES = new Set(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"
 const TARGETS = new Set(["local", "remote"]);
 const MAX_APPROVAL_LIFETIME_MS = 15 * 60 * 1000;
 const admittedProposals = new WeakSet();
+const reservationHandles = new WeakMap();
 const plain = value => value !== null && typeof value === "object" && !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const exact = (value, fields) => plain(value) && Reflect.ownKeys(value).length === fields.length &&
@@ -136,13 +137,72 @@ export async function reserveWorkerProposal({ coordinator, proposal, ownerId, op
   try {
     const lease = await coordinator.acquire({ operationId, reservationKey: proposal.idempotencyKey,
       taskDigest: proposal.taskDigest, ownerId, ttlMs });
-    return Object.freeze({ ok: lease?.ok === true, state: lease?.ok === true ? "RESERVED" : "BLOCKED",
+    const reservation = Object.freeze({ ok: lease?.ok === true, state: lease?.ok === true ? "RESERVED" : "BLOCKED",
       reason: lease?.reason ?? null, proposalDigest: proposal.planDigest, reservationKey: proposal.idempotencyKey,
       ownerId: lease?.ownerId ?? ownerId, fencingToken: lease?.fencingToken ?? null, expiresAt: lease?.expiresAt ?? null,
       duplicate: lease?.duplicate === true, dispatch: false, executionStarted: false, externalEffects: false });
+    if (reservation.ok) reservationHandles.set(reservation, { coordinator, proposal, operationId, ownerId });
+    return reservation;
   } catch {
     return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_PROPOSAL_LEASE_FAILED", dispatch: false, executionStarted: false, externalEffects: false });
   }
+}
+
+async function recordWorkerLeaseReservation({ repository, reservation, rootId, branchId, actorId, occurredAt }) {
+  const handle = reservationHandles.get(reservation);
+  const proposal = handle?.proposal;
+  if (!repository || typeof repository.append !== "function" || !proposal || proposal.actorId !== actorId ||
+      !ID.test(rootId ?? "") || !ID.test(branchId ?? "") || !ID.test(actorId ?? "") || !time(occurredAt) ||
+      !Number.isSafeInteger(reservation.fencingToken) || reservation.fencingToken < 1 || !time(reservation.expiresAt)) {
+    return Object.freeze({ ok: false, reason: "WORKER_LEASE_AUDIT_INPUT_INVALID" });
+  }
+  const eventId = `worker-lease-${createHash("sha256").update(`${rootId}\0${branchId}\0${proposal.planDigest}\0${reservation.fencingToken}`).digest("hex").slice(0, 48)}`;
+  try {
+    return await repository.append({ rootId, branchId, eventId, eventType: "worker.lease.reserved", actorId, occurredAt,
+      subject: `worker-task:${proposal.taskId}`, decision: "OBSERVED",
+      sourceRef: { provider: "kratt-worker", resource: proposal.workerId, revision: null }, artifactDigest: proposal.planDigest,
+      metadata: { state: "RESERVED", target: proposal.target, dataClass: proposal.dataClass, taskDigest: proposal.taskDigest,
+        reservationKeyDigest: hash(proposal.idempotencyKey), fencingNumber: reservation.fencingToken,
+        expiresAt: reservation.expiresAt, dispatch: false, executionStarted: false } });
+  } catch { return Object.freeze({ ok: false, reason: "WORKER_LEASE_AUDIT_FAILED" }); }
+}
+
+/** Persist proposal intent, reserve its local lease, then persist the lease receipt. Never dispatches. */
+export async function reserveAndAuditWorkerProposal({ repository, coordinator, proposal, rootId, branchId,
+  actorId, ownerId, operationId, ttlMs, occurredAt } = {}) {
+  if (!admittedProposals.has(proposal) || !coordinator || typeof coordinator.acquire !== "function" ||
+      typeof coordinator.release !== "function" || !ID.test(rootId ?? "") || !ID.test(branchId ?? "") ||
+      !ID.test(actorId ?? "") || actorId !== proposal.actorId || !ID.test(ownerId ?? "") || !ID.test(operationId ?? "") ||
+      !Number.isSafeInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 15 * 60 * 1_000 || !time(occurredAt)) {
+    return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_PROPOSAL_AUDIT_INPUT_INVALID", dispatch: false, executionStarted: false });
+  }
+
+  const proposalAudit = await recordWorkerProposal({ repository, proposal, rootId, branchId, actorId, occurredAt });
+  if (proposalAudit?.ok !== true) return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_PROPOSAL_AUDIT_FAILED",
+    dispatch: false, executionStarted: false, externalEffects: false });
+
+  const reservation = await reserveWorkerProposal({ coordinator, proposal, ownerId, operationId, ttlMs });
+  if (reservation.ok !== true) return Object.freeze({ ok: false, state: "BLOCKED", reason: reservation.reason ?? "WORKER_LEASE_BLOCKED",
+    proposalCardId: proposalAudit.card?.cardId ?? null, dispatch: false, executionStarted: false, externalEffects: false });
+
+  const leaseAudit = await recordWorkerLeaseReservation({ repository, reservation, rootId, branchId, actorId, occurredAt });
+  if (leaseAudit?.ok !== true) {
+    const rollbackId = `rollback-${createHash("sha256").update(`${operationId}\0${proposal.planDigest}`).digest("hex").slice(0, 32)}`;
+    let rollback;
+    try {
+      rollback = await coordinator.release({ operationId: rollbackId, reservationKey: proposal.idempotencyKey,
+        taskDigest: proposal.taskDigest, ownerId, fencingToken: reservation.fencingToken });
+    } catch { rollback = null; }
+    return Object.freeze({ ok: false, state: rollback?.ok === true ? "BLOCKED" : "PARTIAL",
+      reason: "WORKER_LEASE_AUDIT_FAILED", proposalCardId: proposalAudit.card?.cardId ?? null,
+      leaseReleased: rollback?.ok === true, leaseExpiresAt: rollback?.ok === true ? null : reservation.expiresAt,
+      dispatch: false, executionStarted: false, externalEffects: false });
+  }
+
+  return Object.freeze({ ok: true, state: "RESERVED", reason: "WORKER_EXECUTION_NOT_IMPLEMENTED",
+    proposalCardId: proposalAudit.card?.cardId ?? null, leaseCardId: leaseAudit.card?.cardId ?? null,
+    proposalDigest: proposal.planDigest, fencingToken: reservation.fencingToken, expiresAt: reservation.expiresAt,
+    dispatch: false, executionStarted: false, externalEffects: false });
 }
 
 /** Persist only the proposal outcome and metadata; never the input or approval proofs. */
@@ -163,6 +223,7 @@ export async function recordWorkerProposal({ repository, proposal, rootId, branc
       artifactDigest: proposal.planDigest,
       metadata: { state: proposal.state, reason: proposal.reason, target: proposal.target ?? "unknown",
         dataClass: proposal.dataClass ?? "unknown", dispatch: false, executionStarted: false,
+        taskDigest: proposal.taskDigest ?? null, reservationKeyDigest: proposal.idempotencyKey ? hash(proposal.idempotencyKey) : null,
         effectiveCapabilities: proposal.effectiveCapabilities ?? [], maxCostUnits: proposal.maxCostUnits ?? 0,
         maxDurationMs: proposal.maxDurationMs ?? 0 } });
   } catch {

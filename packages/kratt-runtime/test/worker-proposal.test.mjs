@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { canonicalEvidenceJson } from "../../kratt-core/src/evidence-ledger.mjs";
-import { createWorkerProposal, recordWorkerProposal, reserveWorkerProposal } from "../src/worker-proposal.mjs";
+import { createWorkerProposal, recordWorkerProposal, reserveWorkerProposal, reserveAndAuditWorkerProposal } from "../src/worker-proposal.mjs";
 import { DurableEvidenceRepository } from "../src/durable-evidence.mjs";
 import { PrimeStore } from "../../kratt-core/src/prime-store.mjs";
 import { createWorkerLeaseCoordinator } from "../src/worker-lease-coordinator.mjs";
@@ -107,6 +107,57 @@ test("only a proposal produced by policy validation can reserve a durable lease"
     const blockedProposal = await createWorkerProposal(fixture({ trustedContext: { globalKillSwitch: true } }));
     assert.equal((await reserveWorkerProposal({ ...args, proposal: blockedProposal, operationId: "reserve-blocked" })).reason,
       "WORKER_PROPOSAL_LEASE_INPUT_INVALID");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("proposal audit, lease and ECK receipt form a recoverable no-dispatch saga", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kratt-worker-saga-"));
+  try {
+    const repository = new DurableEvidenceRepository({ path: join(dir, "evidence.journal") });
+    const coordinator = createWorkerLeaseCoordinator({ store: new PrimeStore({ path: join(dir, "leases.journal") }),
+      now: () => "2026-11-11T12:00:00.000Z" });
+    const proposal = await createWorkerProposal(fixture());
+    const args = { repository, coordinator, proposal, rootId: "root-1", branchId: "branch-1", actorId: "actor-1",
+      ownerId: "trusted-runner-1", operationId: "saga-op-1", ttlMs: 5_000, occurredAt: "2026-11-11T12:00:00Z" };
+    const result = await reserveAndAuditWorkerProposal(args);
+    assert.equal(result.ok, true);
+    assert.equal(result.state, "RESERVED");
+    assert.equal(result.dispatch, false);
+    assert.equal(result.executionStarted, false);
+    assert.ok(result.proposalCardId && result.leaseCardId);
+    assert.equal((await reserveAndAuditWorkerProposal(args)).ok, true);
+    const listed = await repository.list({ after: 0, limit: 10 });
+    assert.equal(listed.cards.length, 2);
+    assert.deepEqual(new Set(listed.cards.map(card => card.evidence.eventType)), new Set(["worker.dispatch.proposed", "worker.lease.reserved"]));
+    const journal = await readFile(join(dir, "evidence.journal"), "utf8");
+    assert.equal(journal.includes("private payload"), false);
+    assert.equal(journal.includes("trusted-runner-1"), false);
+    assert.equal(journal.includes("signature"), false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("lease audit failure compensates by releasing the lease and never dispatches", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kratt-worker-saga-failure-"));
+  try {
+    let appends = 0;
+    const base = new DurableEvidenceRepository({ path: join(dir, "evidence.journal") });
+    const repository = { append: async event => {
+      appends += 1;
+      if (appends === 2) throw new Error("injected audit failure");
+      return base.append(event);
+    } };
+    const coordinator = createWorkerLeaseCoordinator({ store: new PrimeStore({ path: join(dir, "leases.journal") }),
+      now: () => "2026-11-11T12:00:00.000Z" });
+    const proposal = await createWorkerProposal(fixture());
+    const result = await reserveAndAuditWorkerProposal({ repository, coordinator, proposal, rootId: "root-1", branchId: "branch-1",
+      actorId: "actor-1", ownerId: "trusted-runner-1", operationId: "saga-fail-1", ttlMs: 5_000,
+      occurredAt: "2026-11-11T12:00:00Z" });
+    assert.equal(result.ok, false);
+    assert.equal(result.state, "BLOCKED");
+    assert.equal(result.leaseReleased, true);
+    assert.equal(result.dispatch, false);
+    assert.equal((await coordinator.status()).activeLeaseCount, 0);
+    assert.equal((await base.list({ after: 0, limit: 10 })).cards.length, 1);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
