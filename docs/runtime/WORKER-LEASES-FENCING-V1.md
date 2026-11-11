@@ -6,6 +6,8 @@ This stage adds a local, append-only lease coordinator on top of `PrimeStore`. I
 
 The component never dispatches work, starts a worker, or contacts Pico-Cloud. Lease success means only that one caller currently holds a local coordination record. It is not proof that the caller is an authenticated worker and is not authorization to execute.
 
+`reserveWorkerProposal` connects the in-memory result of `createWorkerProposal` to the lease coordinator. It accepts only the original frozen proposal object produced by the current runtime instance; a caller-created object or a blocked proposal cannot reserve a lease through this helper. The helper still cannot authenticate the supplied `ownerId`; that identity must come from trusted server-side context.
+
 ## Contract
 
 Use one `PrimeStore` instance and one journal path for the coordinator. Each mutation requires a unique operation ID. Repeating an identical operation ID and request returns the persisted outcome; reusing an operation ID for different inputs is rejected. A reservation key is bound to one `sha256:` task digest for the lifetime of the journal. Changing the payload under the same key is rejected.
@@ -30,4 +32,6 @@ Records are append-only and the log has no retention or compaction policy yet. T
 - Retention, key protection, backup/restore, concurrency/fault injection and operational recovery review.
 
 Statistical calibration, MCU algorithms and remote worker execution remain out of scope.
+
+The proposal-to-lease helper now binds reservation key and task digest. Proposal ECK audit and lease-journal persistence remain separate writes with no cross-store transaction. This limitation is acceptable only while dispatch is absent; any future execution path must define an atomic or recoverable audit protocol before it is enabled.
 

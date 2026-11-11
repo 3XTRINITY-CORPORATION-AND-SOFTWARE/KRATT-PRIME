@@ -8,6 +8,7 @@ const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const DATA_CLASSES = new Set(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]);
 const TARGETS = new Set(["local", "remote"]);
 const MAX_APPROVAL_LIFETIME_MS = 15 * 60 * 1000;
+const admittedProposals = new WeakSet();
 const plain = value => value !== null && typeof value === "object" && !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const exact = (value, fields) => plain(value) && Reflect.ownKeys(value).length === fields.length &&
@@ -120,7 +121,28 @@ export async function createWorkerProposal({ task, worker, trustedContext, conse
     dispatch: false, executionStarted: false, externalEffects: false };
   const planDigest = digestJson(proposal);
   if (!planDigest) return block("WORKER_PROPOSAL_CANONICALIZATION_FAILED", fields);
-  return Object.freeze({ ok: true, ...proposal, planDigest });
+  const result = Object.freeze({ ok: true, ...proposal, planDigest });
+  admittedProposals.add(result);
+  return result;
+}
+
+/** Reserve a validated proposal without authorizing or starting execution. */
+export async function reserveWorkerProposal({ coordinator, proposal, ownerId, operationId, ttlMs } = {}) {
+  if (!admittedProposals.has(proposal) || !coordinator || typeof coordinator.acquire !== "function" ||
+      typeof ownerId !== "string" || !ID.test(ownerId) || typeof operationId !== "string" || !ID.test(operationId) ||
+      !Number.isSafeInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 15 * 60 * 1_000) {
+    return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_PROPOSAL_LEASE_INPUT_INVALID", dispatch: false, executionStarted: false });
+  }
+  try {
+    const lease = await coordinator.acquire({ operationId, reservationKey: proposal.idempotencyKey,
+      taskDigest: proposal.taskDigest, ownerId, ttlMs });
+    return Object.freeze({ ok: lease?.ok === true, state: lease?.ok === true ? "RESERVED" : "BLOCKED",
+      reason: lease?.reason ?? null, proposalDigest: proposal.planDigest, reservationKey: proposal.idempotencyKey,
+      ownerId: lease?.ownerId ?? ownerId, fencingToken: lease?.fencingToken ?? null, expiresAt: lease?.expiresAt ?? null,
+      duplicate: lease?.duplicate === true, dispatch: false, executionStarted: false, externalEffects: false });
+  } catch {
+    return Object.freeze({ ok: false, state: "BLOCKED", reason: "WORKER_PROPOSAL_LEASE_FAILED", dispatch: false, executionStarted: false, externalEffects: false });
+  }
 }
 
 /** Persist only the proposal outcome and metadata; never the input or approval proofs. */
@@ -147,4 +169,5 @@ export async function recordWorkerProposal({ repository, proposal, rootId, branc
     return Object.freeze({ ok: false, reason: "WORKER_PROPOSAL_AUDIT_FAILED" });
   }
 }
+
 

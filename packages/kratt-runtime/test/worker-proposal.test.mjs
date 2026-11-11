@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { canonicalEvidenceJson } from "../../kratt-core/src/evidence-ledger.mjs";
-import { createWorkerProposal, recordWorkerProposal } from "../src/worker-proposal.mjs";
+import { createWorkerProposal, recordWorkerProposal, reserveWorkerProposal } from "../src/worker-proposal.mjs";
 import { DurableEvidenceRepository } from "../src/durable-evidence.mjs";
+import { PrimeStore } from "../../kratt-core/src/prime-store.mjs";
+import { createWorkerLeaseCoordinator } from "../src/worker-lease-coordinator.mjs";
 import { createHash } from "node:crypto";
 
 const digest = value => `sha256:${createHash("sha256").update(value).digest("hex")}`;
@@ -81,4 +83,31 @@ test("audit stores metadata only and exact proposal retries are idempotent", asy
     assert.equal(journal.includes(proposal.planDigest), true);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("only a proposal produced by policy validation can reserve a durable lease", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kratt-worker-reservation-"));
+  try {
+    const proposal = await createWorkerProposal(fixture());
+    const coordinator = createWorkerLeaseCoordinator({ store: new PrimeStore({ path: join(dir, "leases.journal") }),
+      now: () => "2026-11-11T12:00:00.000Z" });
+    const args = { coordinator, proposal, ownerId: "trusted-runner-1", operationId: "reserve-task-1", ttlMs: 5_000 };
+    const reserved = await reserveWorkerProposal(args);
+    assert.equal(reserved.ok, true);
+    assert.equal(reserved.state, "RESERVED");
+    assert.equal(reserved.reservationKey, "idem-1");
+    assert.equal(reserved.fencingToken, 1);
+    assert.equal(reserved.dispatch, false);
+    assert.equal(reserved.executionStarted, false);
+    assert.equal(reserved.externalEffects, false);
+    assert.equal((await reserveWorkerProposal(args)).duplicate, true);
+
+    const forged = { ...proposal };
+    assert.equal((await reserveWorkerProposal({ ...args, proposal: forged, operationId: "reserve-forged" })).reason,
+      "WORKER_PROPOSAL_LEASE_INPUT_INVALID");
+    const blockedProposal = await createWorkerProposal(fixture({ trustedContext: { globalKillSwitch: true } }));
+    assert.equal((await reserveWorkerProposal({ ...args, proposal: blockedProposal, operationId: "reserve-blocked" })).reason,
+      "WORKER_PROPOSAL_LEASE_INPUT_INVALID");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 

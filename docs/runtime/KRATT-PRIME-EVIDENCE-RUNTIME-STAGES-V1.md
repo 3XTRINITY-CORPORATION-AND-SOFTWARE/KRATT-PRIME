@@ -52,6 +52,6 @@ The current code provides a Node 22 runtime foundation, typed evidence/branch/re
 
 ## Stage 7.1 lease contract
 
-`createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
+`createWorkerLeaseCoordinator` appends idempotent operation records to `PrimeStore`, binds reservation keys to task digests, serializes coordinator objects sharing one store instance in one process, and rejects stale owner/fencing pairs. `reserveWorkerProposal` links only a policy-produced proposal object to its reservation key and digest. Leases expire after bounded intervals. This is a local single-writer coordination primitive only: it does not authenticate worker IDs, provide cross-process transactions, record task completion, or authorize any side effect. Proposal ECK audit and lease-journal writes are not atomic with each other. Dispatch remains disabled. See `WORKER-LEASES-FENCING-V1.md`.
 
 
