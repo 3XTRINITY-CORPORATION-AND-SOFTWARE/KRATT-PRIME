@@ -39,7 +39,7 @@ export function createCompetitiveStagingRuntime({
  const handler=createTelegramCompetitiveWebhookHandler({
   ingestion,allowRequest,maxBodyBytes:config.maxBodyBytes,
  });
- return Object.freeze({
+ const runtime={
   enabled:true,
   route:config.route,
   handler,
@@ -59,7 +59,20 @@ export function createCompetitiveStagingRuntime({
   mount(router){
    if(!router||typeof router.post!=="function")throw new TypeError("STAGING_HTTP_ROUTER_REQUIRED");
    router.post(config.route,handler);
-   return true;
+   let readinessMounted=false;
+   if(typeof router.get==="function"){
+    router.get("/health/competitive-intel/ready",async(_request,response)=>{
+     const result=await runtime.readiness();
+     response.statusCode=result.status==="READY"?200:503;
+     response.setHeader("content-type","application/json; charset=utf-8");
+     response.setHeader("cache-control","no-store");
+     response.setHeader("x-content-type-options","nosniff");
+     response.end(JSON.stringify(result));
+    });
+    readinessMounted=true;
+   }
+   return Object.freeze({ingressMounted:true,readinessMounted});
   },
- });
+ };
+ return Object.freeze(runtime);
 }
