@@ -10,4 +10,26 @@ CREATE TABLE IF NOT EXISTS kratt_cancelled_tasks(task_id TEXT PRIMARY KEY,cancel
 CREATE TABLE IF NOT EXISTS kratt_audit_head(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton=TRUE),sequence BIGINT NOT NULL DEFAULT 0,hash CHAR(64) NOT NULL);
 INSERT INTO kratt_audit_head(singleton,sequence,hash) VALUES(TRUE,0,repeat('0',64)) ON CONFLICT(singleton) DO NOTHING;
 CREATE TABLE IF NOT EXISTS kratt_audit_events(sequence BIGINT PRIMARY KEY,event_id TEXT NOT NULL UNIQUE,event_type TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL,record_json JSONB NOT NULL,previous_hash CHAR(64) NOT NULL,hash CHAR(64) NOT NULL UNIQUE);
+
+-- Application-level append-only enforcement. The runtime role should receive
+-- INSERT/SELECT on audit events and no UPDATE/DELETE privileges as well.
+CREATE OR REPLACE FUNCTION kratt_reject_audit_event_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $
+BEGIN
+  RAISE EXCEPTION 'KRATT_AUDIT_APPEND_ONLY';
+END;
+$;
+
+DROP TRIGGER IF EXISTS kratt_audit_no_update ON kratt_audit_events;
+CREATE TRIGGER kratt_audit_no_update
+  BEFORE UPDATE ON kratt_audit_events
+  FOR EACH ROW EXECUTE FUNCTION kratt_reject_audit_event_mutation();
+
+DROP TRIGGER IF EXISTS kratt_audit_no_delete ON kratt_audit_events;
+CREATE TRIGGER kratt_audit_no_delete
+  BEFORE DELETE ON kratt_audit_events
+  FOR EACH ROW EXECUTE FUNCTION kratt_reject_audit_event_mutation();
+
 COMMIT;
