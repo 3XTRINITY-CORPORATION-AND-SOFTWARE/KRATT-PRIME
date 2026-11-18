@@ -162,3 +162,15 @@ test("feature and governance baselines are sourced only from the prior verified 
   claim_key:"agentforce-voice",kind:"FEATURE_CHANGE",competitor_id:"salesforce",value:"enabled",evidence_ids:["e-price"]
  }]);
 });
+
+test("non-canonical accessors and impossible Telegram dates are rejected before an inbox lease",async()=>{
+ const {service,store}=makeIngest();
+ const impossible=update(80);impossible.channel_post.date=Number.MAX_SAFE_INTEGER;
+ const badDate=await service.ingest({update:impossible,receivedSecret:secret});
+ assert.equal(badDate.reason,"TELEGRAM_MESSAGE_METADATA_INVALID");
+ const accessor=update(81);
+ Object.defineProperty(accessor,"update_id",{enumerable:true,get(){throw new Error("should not execute");}});
+ const badShape=await service.ingest({update:accessor,receivedSecret:secret});
+ assert.equal(badShape.reason,"TELEGRAM_UPDATE_CANONICALIZATION_FAILED");
+ assert.equal(store.state.claims.length,0);
+});
