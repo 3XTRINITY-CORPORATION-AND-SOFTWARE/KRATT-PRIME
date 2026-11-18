@@ -16,7 +16,7 @@ test("outbox supports lease recovery, bounded retries and dead letters",()=>{
  assert.match(migration,/'PENDING','LEASED','DONE','DEAD'/);
  assert.match(migration,/lease_until TIMESTAMPTZ/);
  assert.match(store,/FOR UPDATE SKIP LOCKED/);
- assert.match(store,/lease_until<=$1/);
+ assert.ok(store.includes("lease_until<=$1"));
  assert.match(store,/maxAttempts/);
 });
 test("nonce, cancellation, intent, outbox and audit reservation share one transaction",()=>{
