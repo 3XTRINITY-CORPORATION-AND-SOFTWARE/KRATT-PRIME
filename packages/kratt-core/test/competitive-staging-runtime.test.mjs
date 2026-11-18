@@ -102,16 +102,25 @@ test("staging runtime composes store, parser and handler and reports a healthy e
  const runtime=createCompetitiveStagingRuntime({env,postgresPool:mockPool(),parser,competitiveEngine:engine,allowRequest:limiter});
  assert.equal(runtime.enabled,true);
  assert.equal(typeof runtime.handler,"function");
- const routes=[];
- assert.equal(runtime.mount({post:(path,handler)=>routes.push({path,handler})}),true);
+ const routes=[],healthRoutes=[];
+ const mounted=runtime.mount({post:(path,handler)=>routes.push({path,handler}),get:(path,handler)=>healthRoutes.push({path,handler})});
+ assert.deepEqual(mounted,{ingressMounted:true,readinessMounted:true});
  assert.equal(routes.length,1);
  assert.equal(routes[0].path,"/webhooks/telegram/competitive");
+ assert.equal(healthRoutes.length,1);
+ assert.equal(healthRoutes[0].path,"/health/competitive-intel/ready");
  const readiness=await runtime.readiness();
  assert.equal(readiness.status,"READY");
  assert.equal(readiness.environment,"staging");
  assert.equal(readiness.database,"READY");
  assert.equal(readiness.snapshot_chain,"VALID");
  assert.equal(JSON.stringify(readiness).includes("wave8-secret"),false);
+ let healthBody="";
+ const response={headers:{},setHeader(k,v){this.headers[k]=v;},end(v){healthBody=v;}};
+ await healthRoutes[0].handler({},response);
+ assert.equal(response.statusCode,200);
+ assert.equal(JSON.parse(healthBody).status,"READY");
+ assert.equal(JSON.stringify(response.headers).includes("wave8-secret"),false);
 });
 
 test("runtime remains degraded when required snapshot tables are absent",async()=>{
