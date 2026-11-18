@@ -75,7 +75,7 @@ export function createStrictCompetitiveSignalParser({extract,maxTextBytes=16_384
     "monitoring_checks","claims","evidence","pricing_observations","ranking_snapshot"]))
     throw new TypeError("COMPETITIVE_SIGNAL_OUTPUT_SHAPE_INVALID");
    const evidenceIds=validateEvidence(candidate.evidence);
-   if(evidenceIds instanceof Set===false)throw new TypeError(evidenceIds);
+   if(!(evidenceIds instanceof Set))throw new TypeError(evidenceIds);
    if(!exact(candidate.period,["label","starts_at","ends_at"])||!id(candidate.period.label)||
     !time(candidate.period.starts_at)||!time(candidate.period.ends_at)||
     Date.parse(candidate.period.starts_at)>=Date.parse(candidate.period.ends_at))
@@ -93,7 +93,7 @@ export function createStrictCompetitiveSignalParser({extract,maxTextBytes=16_384
       "baseline_value","current_value","assessments"])||
      !id(c.claim_id)||!id(c.claim_key)||!KINDS.has(c.kind)||!candidate.competitor_ids.includes(c.competitor_id)||
      typeof c.statement!=="string"||c.statement.length<1||c.statement.length>1200||
-     (c.baseline_ref!==null&&c.baseline_ref!==undefined)||(c.baseline_value!==null&&c.baseline_value!==undefined)||
+     c.baseline_ref!==null||c.baseline_value!==null||
      (c.observation_ref!==null&&!id(c.observation_ref))||
      ![null,"string","number"].includes(c.current_value===null?null:typeof c.current_value)||
      !Array.isArray(c.assessments)||claimIds.has(c.claim_id))
@@ -111,12 +111,19 @@ export function createStrictCompetitiveSignalParser({extract,maxTextBytes=16_384
    }
    if(!Array.isArray(candidate.pricing_observations)||candidate.pricing_observations.length>128)
     throw new TypeError("COMPETITIVE_SIGNAL_PRICING_INVALID");
-   const offers=new Set();
+   const offers=new Map();
    for(const offer of candidate.pricing_observations){
     const error=validateOffer(offer,evidenceIds);
     if(error)throw new TypeError(error);
     if(offers.has(offer.observation_id))throw new TypeError("COMPETITIVE_SIGNAL_DUPLICATE_OFFER");
-    offers.add(offer.observation_id);
+    if(!candidate.competitor_ids.includes(offer.competitor_id))throw new TypeError("COMPETITIVE_SIGNAL_OFFER_COMPETITOR_OUT_OF_SCOPE");
+    offers.set(offer.observation_id,offer);
+   }
+   for(const claim of candidate.claims){
+    if(claim.kind==="PRICE_CHANGE"){
+     const observed=offers.get(claim.observation_ref);
+     if(!observed||observed.competitor_id!==claim.competitor_id)throw new TypeError("PRICE_CHANGE_OBSERVATION_BINDING_INVALID");
+    }
    }
    if(candidate.ranking_snapshot!==null){
     const rank=candidate.ranking_snapshot;
