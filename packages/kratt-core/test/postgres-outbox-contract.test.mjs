@@ -29,3 +29,10 @@ test("worker requires an explicit adapter and forwards the stable idempotency ke
  assert.match(worker,/idempotencyKey:item\.idempotency_key/);
  assert.match(worker,/PROVIDER_ADAPTER_UNAVAILABLE/);
 });
+
+
+test("PostgreSQL migration makes audit events append-only",()=>{
+ assert.match(migration,/CREATE TRIGGER kratt_audit_no_update/i);
+ assert.match(migration,/CREATE TRIGGER kratt_audit_no_delete/i);
+ assert.match(migration,/KRATT_AUDIT_APPEND_ONLY/);
+});
