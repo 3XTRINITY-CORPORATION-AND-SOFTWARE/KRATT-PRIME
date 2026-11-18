@@ -178,6 +178,7 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
  }
 
  async function checkReady(){
+  const found=[];
   const tables=[
    "kratt_telegram_competitive_inbox",
    "kratt_telegram_ingress_rate_limits",
@@ -188,7 +189,6 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
   try{
    const client=await pool.connect();
    try{
-    const found=[];
     for(const table of tables){
      const result=await client.query("SELECT to_regclass($1) AS relation",[table]);
      if(!result.rows?.[0]?.relation)return Object.freeze({ready:false,reason:"COMPETITIVE_SCHEMA_INCOMPLETE",missing:table});
@@ -198,8 +198,8 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
    const chain=await verifySnapshotChain();
    if(chain.ok!==true)return Object.freeze({ready:false,reason:"COMPETITIVE_SNAPSHOT_CHAIN_INVALID"});
    return Object.freeze({ready:true,reason:"COMPETITIVE_SNAPSHOT_STORE_READY",tables:found,chainSequence:chain.sequence});
-  }catch(error){
-   return Object.freeze({ready:false,reason:"COMPETITIVE_DATABASE_UNAVAILABLE",diagnostic:error instanceof Error?error.message:"UNKNOWN"});
+  }catch{
+   return Object.freeze({ready:false,reason:"COMPETITIVE_DATABASE_UNAVAILABLE"});
   }
  }
 
