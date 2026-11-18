@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 const SCHEMA="kratt-audit/v1", ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/, HEX=/^[a-f0-9]{64}$/, ZERO="0".repeat(64);
 const digest=v=>createHash("sha256").update(v,"utf8").digest("hex");
 const validId=v=>typeof v==="string"&&ID.test(v);
+const validIdempotencyKey=v=>typeof v==="string"&&/^kratt:[A-Za-z0-9][A-Za-z0-9._:-]{0,191}:[a-f0-9]{64}$/.test(v);
 const validTime=v=>typeof v==="string"&&Number.isFinite(Date.parse(v))&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v);
 function stable(v){
  if(v===null||typeof v==="string"||typeof v==="boolean")return JSON.stringify(v);
@@ -59,7 +60,7 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
    const q=await c.query("SELECT idempotency_key,provider,attempts FROM kratt_dispatch_outbox WHERE outbox_id=$1 AND status='LEASED' AND lease_token=$2 FOR UPDATE",[outboxId,leaseToken]);
    if(q.rowCount!==1)return{ok:false,reason:"LEASE_LOST"};const item=q.rows[0];
    const event={schema_version:SCHEMA,event_id:"outcome:"+digest(item.idempotency_key),event_type:outcome.status==="COMPLETED"?"dispatch.completed":"dispatch.failed",
-    created_at:at,actor_id:actorId,task_id:taskId,provider:item.provider,idempotency_key:item.idempotency_key,result:outcome.audit_result??{status:outcome.status.toLowerCase()}};
+    created_at:at,actor_id:actorId,task_id:taskId,provider:item.provider,idempotency_key:item.idempotency_key,result:{status:outcome.status.toLowerCase()}};
    await appendAudit(c,event);
    await c.query("UPDATE kratt_dispatch_intents SET status=$1,updated_at=$2 WHERE idempotency_key=$3 AND status='INTENT_COMMITTED'",[outcome.status,at,item.idempotency_key]);
    await c.query("UPDATE kratt_dispatch_outbox SET status='DONE',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=$1 WHERE outbox_id=$2",[at,outboxId]);
