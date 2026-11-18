@@ -46,3 +46,9 @@ The TCO calculator estimates published variable usage at the per-unit rate. It d
 - Verify primary source URL/content digest independently; preserve source timestamps and captured page artifacts.
 - Add authenticated admin review and approval before pricing/marketing claims are published.
 - Add integration tests using real source snapshots and persistence; unit tests alone do not establish live Telegram, database or provider readiness.
+
+## Baseline integrity and completeness
+
+A supplied prior snapshot is eligible only when the caller marks it `verified: true`, its snapshot ID matches the signal, and the compared SKU, currency, billing unit, region and observation time are compatible. The marker is a contract with the trusted persistence adapter; it must never be populated from an untrusted Telegram payload.
+
+Each monitored change category is complete only when every claim in that category is either evidence-backed as `CHANGE_CONFIRMED` or evidence-backed as `CLAIM_NOT_REPRODUCED`. A category with no claims, conflicting evidence, a mismatched snapshot or a missing baseline remains unassessed. When one category has a confirmed change and another has gaps, the aggregate is `CHANGES_CONFIRMED_WITH_GAPS`.
