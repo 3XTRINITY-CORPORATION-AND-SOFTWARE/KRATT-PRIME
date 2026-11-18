@@ -5,7 +5,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS kratt_telegram_competitive_inbox (
   bot_id TEXT NOT NULL,
   update_id BIGINT NOT NULL CHECK (update_id >= 0),
-  payload_digest CHAR(71) NOT NULL CHECK (payload_digest ~ '^sha256:[a-f0-9]{64}$'),
+  payload_digest TEXT NOT NULL CHECK (payload_digest ~ '^sha256:[a-f0-9]{64}$'),
   status TEXT NOT NULL CHECK (status IN ('PROCESSING','COMPLETED')),
   lease_token TEXT,
   lease_until TIMESTAMPTZ,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS kratt_competitor_snapshots (
   captured_at TIMESTAMPTZ NOT NULL,
   bot_id TEXT NOT NULL,
   telegram_update_id BIGINT NOT NULL,
-  payload_digest CHAR(71) NOT NULL CHECK (payload_digest ~ '^sha256:[a-f0-9]{64}$'),
+  payload_digest TEXT NOT NULL CHECK (payload_digest ~ '^sha256:[a-f0-9]{64}$'),
   snapshot_json JSONB NOT NULL,
   snapshot_digest CHAR(64) NOT NULL CHECK (snapshot_digest ~ '^[a-f0-9]{64}$'),
   previous_snapshot_id TEXT REFERENCES kratt_competitor_snapshots(snapshot_id),
