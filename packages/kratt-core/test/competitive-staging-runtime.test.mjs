@@ -24,15 +24,15 @@ const env={KRATT_DEPLOYMENT_ENV:"staging",KRATT_COMPETITIVE_INGRESS_ENABLED:"tru
 
 function mockPool({tables=true,events=[]}={}){
  const head={sequence:0,hash:"0".repeat(64)};
+ const calls=[];
  const query=async(sql,params=[])=>{
-  const q=sql.toLowerCase().replace(/\s+/g," ").trim();
+  const q=sql.toLowerCase().replace(/\\s+/g," ").trim();
+  calls.push(q);
   if(q.startsWith("select to_regclass"))return{rowCount:1,rows:[{relation:tables?params[0]:null}]};
   if(q.startsWith("begin")||q==="commit"||q==="rollback")return{rowCount:0,rows:[]};
   if(q.startsWith("select sequence,event_id,snapshot_id,record_json,previous_hash,hash from kratt_competitor_snapshot_events"))
    return{rowCount:events.length,rows:events};
   if(q.startsWith("select sequence,hash from kratt_competitor_snapshot_head"))
-   return{rowCount:1,rows:[head]};
-  if(q.startsWith("select sequence,hash from kratt_competitor_snapshot_head where singleton=true"))
    return{rowCount:1,rows:[head]};
   throw new Error("UNEXPECTED_MOCK_QUERY:"+q);
  };
