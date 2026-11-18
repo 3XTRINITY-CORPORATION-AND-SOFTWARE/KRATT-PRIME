@@ -88,6 +88,7 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
 
  async function getLatestSnapshot({competitorId}={}){
   if(!validId(competitorId))throw new TypeError("COMPETITOR_ID_INVALID");
+  let snapshot=null,rowSnapshotId=null,rowDigest=null;
   const client=await pool.connect();
   try{
    const result=await client.query(
@@ -95,20 +96,21 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
     [competitorId]);
    const row=result.rows?.[0];
    if(!row)return null;
-   const snapshot=parseJson(row.snapshot_json);
-   if(!validSnapshot(snapshot)||snapshot.snapshot_id!==row.snapshot_id||snapshot.competitor_id!==competitorId||
-    !HEX.test(row.snapshot_digest??"")||hash(stable(snapshot))!==row.snapshot_digest)
+   snapshot=parseJson(row.snapshot_json);
+   rowSnapshotId=row.snapshot_id;rowDigest=row.snapshot_digest;
+   if(!validSnapshot(snapshot)||snapshot.snapshot_id!==rowSnapshotId||snapshot.competitor_id!==competitorId||
+    !HEX.test(rowDigest??"")||hash(stable(snapshot))!==rowDigest)
     throw new Error("COMPETITOR_SNAPSHOT_INTEGRITY_FAILED");
    const eventResult=await client.query(
     "SELECT record_json FROM kratt_competitor_snapshot_events WHERE snapshot_id=$1 ORDER BY sequence DESC LIMIT 1",
-    [row.snapshot_id]);
+    [rowSnapshotId]);
    const event=parseJson(eventResult.rows?.[0]?.record_json);
-   if(!plain(event)||event.snapshot_id!==row.snapshot_id||event.snapshot_digest!==row.snapshot_digest)
+   if(!plain(event)||event.snapshot_id!==rowSnapshotId||event.snapshot_digest!==rowDigest)
     throw new Error("COMPETITOR_SNAPSHOT_EVENT_BINDING_INVALID");
-   const chain=await verifySnapshotChain();
-   if(chain.ok!==true)throw new Error("COMPETITOR_SNAPSHOT_CHAIN_INVALID");
-   return Object.freeze({...snapshot,verified:true});
   }finally{client.release();}
+  const chain=await verifySnapshotChain();
+  if(chain.ok!==true)throw new Error("COMPETITOR_SNAPSHOT_CHAIN_INVALID");
+  return Object.freeze({...snapshot,verified:true});
  }
 
  async function commitSnapshot({
