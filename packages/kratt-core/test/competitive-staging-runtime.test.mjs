@@ -36,7 +36,7 @@ function mockPool({tables=true,events=[]}={}){
    return{rowCount:1,rows:[head]};
   throw new Error("UNEXPECTED_MOCK_QUERY:"+q);
  };
- return{query,async connect(){return{query,release(){}};}};
+ return{query,calls,async connect(){return{query,release(){}};}};
 }
 const engine={analyze:()=>({status:"EVIDENCE_INCOMPLETE",telegram_source_verified:true,verified_evidence_ids:["e-price"],
  report_digest:"sha256:"+"b".repeat(64),weekly_change_status:"INCOMPLETE_BASELINE_OR_EVIDENCE",
@@ -99,7 +99,8 @@ test("parser rejects model-supplied temporal baseline or invalid evidence links"
 });
 
 test("staging runtime composes store, parser and handler and reports a healthy empty snapshot chain",async()=>{
- const runtime=createCompetitiveStagingRuntime({env,postgresPool:mockPool(),parser,competitiveEngine:engine,allowRequest:limiter});
+ const pool=mockPool();
+ const runtime=createCompetitiveStagingRuntime({env,postgresPool:pool,parser,competitiveEngine:engine,allowRequest:limiter});
  assert.equal(runtime.enabled,true);
  assert.equal(typeof runtime.handler,"function");
  const routes=[],healthRoutes=[];
@@ -110,7 +111,7 @@ test("staging runtime composes store, parser and handler and reports a healthy e
  assert.equal(healthRoutes.length,1);
  assert.equal(healthRoutes[0].path,"/health/competitive-intel/ready");
  const readiness=await runtime.readiness();
- assert.equal(readiness.status,"READY",JSON.stringify(readiness));
+ assert.equal(readiness.status,"READY",JSON.stringify({readiness,queries:pool.calls}));
  assert.equal(readiness.environment,"staging");
  assert.equal(readiness.database,"READY");
  assert.equal(readiness.snapshot_chain,"VALID");
