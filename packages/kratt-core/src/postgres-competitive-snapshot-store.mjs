@@ -141,7 +141,7 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
     created_at:createdAt,
     snapshot_id:snapshot.snapshot_id,
     competitor_id:snapshot.competitor_id,
-    snapshot_digest,
+    snapshot_digest:snapshotDigest,
     previous_snapshot_id:latestId,
    };
    const recordJson=stable(event);
