@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { validateEvidenceRecord } from "./contracts.mjs";
 
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/;
@@ -193,10 +194,12 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
   const unavailableOffers=signal.pricing_observations.filter(o=>!trustedOffers.includes(o)).map(o=>o.observation_id);
   const mismatchedRecommendations=signal.recommendation_competitor_ids.filter(id=>!signal.competitor_ids.includes(id));
   const temporalResults=comparisons.filter(c=>TEMPORAL.has(c.kind));
-  const checkedKinds=new Set(temporalResults.filter(c=>["CHANGE_CONFIRMED","CLAIM_NOT_REPRODUCED"].includes(c.comparison.status)).map(c=>c.kind));
-  const unassessedChecks=signal.monitoring_checks.filter(k=>!checkedKinds.has(k));
+  const unassessedChecks=signal.monitoring_checks.filter(kind=>{
+   const rows=temporalResults.filter(c=>c.kind===kind);
+   return rows.length===0||rows.some(c=>!["CHANGE_CONFIRMED","CLAIM_NOT_REPRODUCED"].includes(c.comparison.status));
+  });
   const confirmedChanges=temporalResults.filter(c=>c.comparison.status==="CHANGE_CONFIRMED").length;
-  const weeklyChangeStatus=confirmedChanges?"CHANGES_CONFIRMED":
+  const weeklyChangeStatus=confirmedChanges?(unassessedChecks.length?"CHANGES_CONFIRMED_WITH_GAPS":"CHANGES_CONFIRMED"):
    unassessedChecks.length?"INCOMPLETE_BASELINE_OR_EVIDENCE":"NO_CHANGES_CONFIRMED";
   const status=!telegramVerified?"SOURCE_UNVERIFIED":
    reflection.status==="REVIEW_REQUIRED"?"REVIEW_REQUIRED":
@@ -219,10 +222,10 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
    ],
    tco:{available:trustedOffers.length>0,offer_count:trustedOffers.length},
   };
+  const reportDigest="sha256:"+createHash("sha256").update(JSON.stringify(report),"utf8").digest("hex");
   return Object.freeze({...report,pricing:Object.freeze({...report.pricing,verified_observations:Object.freeze([...trustedOffers])}),
    entity_reference_warnings:Object.freeze(report.entity_reference_warnings),
-   claims:Object.freeze(comparisons),unassessed_checks:Object.freeze(unassessedChecks),
-   report_digest:null});
+   claims:Object.freeze(comparisons),unassessed_checks:Object.freeze(unassessedChecks),report_digest:reportDigest});
  }
  return Object.freeze({analyze,calculateTco:calculateMonthlyTco});
 }
