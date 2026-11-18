@@ -24,11 +24,11 @@ const validText=(v,max)=>typeof v==="string"&&v.length>0&&v.length<=max&&!/[\u00
 const uniqueStrings=(v,re,min,max)=>Array.isArray(v)&&v.length>=min&&v.length<=max&&v.every(x=>typeof x==="string"&&re.test(x))&&new Set(v).size===v.length;
 const validUtc=v=>{
  if(typeof v!=="string")return false;
- const m=/^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,3}))?Z$/.exec(v);
+ const m=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?Z$/.exec(v);
  if(!m)return false;
  const t=Date.parse(v);
  return Number.isFinite(t)&&new Date(t).toISOString()===m[1]+"."+(m[2]??"").padEnd(3,"0")+"Z";
-};
+};;
 const TASK_KEYS=["task_id","factory","agent_id","objective","repository","branch","base_sha","scope","allowed_actions","forbidden_actions","required_evidence","resource_budget","protocol_version"];
 const RECEIPT_KEYS=["task_id","agent_id","repository","base_sha","action","scope","result","evidence","verification_state","timestamp","protocol_version"];
 function validateEnvelope(v){
@@ -57,8 +57,7 @@ function validateReceipt(v){
   !Number.isInteger(v.result.checks.fail)||v.result.checks.fail<0||
   !(v.result.failure===null||validText(v.result.failure,300))||!plain(v.evidence)||
   !["UNVERIFIED","VERIFIED","REJECTED","INSUFFICIENT_EVIDENCE"].includes(v.verification_state)||
-  typeof v.timestamp!=="string"||!Number.isFinite(Date.parse(v.timestamp))||
-  !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v.timestamp))
+  !validUtc(v.timestamp))
   return{ok:false,reason:"STEEL_ACTION_RECEIPT_INVALID"};
  return{ok:true,value:structuredClone(v)};
 }
