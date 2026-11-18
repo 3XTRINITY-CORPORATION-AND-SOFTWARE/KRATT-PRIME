@@ -44,17 +44,17 @@ export function createTelegramCompetitiveWebhookHandler({
   if(contentLength!==undefined){
    const declared=Number(contentLength);
    if(!Number.isSafeInteger(declared)||declared<0)return respond(response,400,{status:"REJECTED",reason:"CONTENT_LENGTH_INVALID"});
-   if(declared>maxBodyBytes){request.resume();return respond(response,413,{status:"REJECTED",reason:"WEBHOOK_BODY_TOO_LARGE"});}
+   if(declared>maxBodyBytes){request.resume();return respond(response,200,{status:"REJECTED",reason:"WEBHOOK_BODY_TOO_LARGE_ACKNOWLEDGED"});}
   }
   let update;
   try{update=await readBoundedJson(request,maxBodyBytes);}
   catch(error){
    const tooLarge=error?.code==="BODY_TOO_LARGE";
-   return respond(response,tooLarge?413:400,{status:"REJECTED",reason:tooLarge?"WEBHOOK_BODY_TOO_LARGE":"WEBHOOK_JSON_INVALID"});
+   return respond(response,tooLarge?200:400,{status:"REJECTED",reason:tooLarge?"WEBHOOK_BODY_TOO_LARGE_ACKNOWLEDGED":"WEBHOOK_JSON_INVALID"});
   }
   try{
    const result=await ingestion.ingest({update,receivedSecret});
-   const statusCode=({OK:200,DUPLICATE:200,PENDING:202,DENY:401,REJECTED:400,BLOCKED:409,ERROR:503})[result?.status]??400;
+   const statusCode=({OK:200,DUPLICATE:200,PENDING:202,DENY:401,REJECTED:200,BLOCKED:200,ERROR:503})[result?.status]??400;
    return respond(response,statusCode,result);
   }catch{return respond(response,503,{status:"ERROR",reason:"TELEGRAM_COMPETITIVE_INGRESS_UNAVAILABLE"});}
  };
