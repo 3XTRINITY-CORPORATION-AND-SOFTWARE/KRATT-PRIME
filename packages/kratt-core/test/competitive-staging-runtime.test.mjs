@@ -20,7 +20,7 @@ const candidate={period:{label:"7d",starts_at:"2026-11-11T00:00:00Z",ends_at:"20
  evidence:[evidence],pricing_observations:[],ranking_snapshot:null};
 const env={KRATT_DEPLOYMENT_ENV:"staging",KRATT_COMPETITIVE_INGRESS_ENABLED:"true",
  TELEGRAM_WEBHOOK_SECRET:"wave8-secret_123",TELEGRAM_BOT_ID:"jason-bourne",
- TELEGRAM_COMPETITIVE_CHANNEL_IDS:"-1001234567890"};
+ TELEGRAM_COMPETITIVE_CHANNEL_IDS:"-1001234567890",TELEGRAM_INGRESS_RATE_LIMIT_SALT:"wave8-rate-limit-salt-secret"};
 
 function mockPool({tables=true,events=[]}={}){
  const head={sequence:0,hash:"0".repeat(64)};
@@ -131,9 +131,10 @@ test("runtime remains degraded when required snapshot tables are absent",async()
  assert.equal(readiness.reason,"COMPETITIVE_SCHEMA_INCOMPLETE");
 });
 
-test("runtime rejects missing parser, engine, pool and rate limiter before mounting",()=>{
+test("runtime rejects missing parser, engine and pool before mounting",()=>{
  assert.throws(()=>createCompetitiveStagingRuntime({env,parser,competitiveEngine:engine,allowRequest:limiter}),/POSTGRES_POOL_REQUIRED/);
  assert.throws(()=>createCompetitiveStagingRuntime({env,postgresPool:mockPool(),competitiveEngine:engine,allowRequest:limiter}),/PARSER_REQUIRED/);
  assert.throws(()=>createCompetitiveStagingRuntime({env,postgresPool:mockPool(),parser,allowRequest:limiter}),/ENGINE_REQUIRED/);
- assert.throws(()=>createCompetitiveStagingRuntime({env,postgresPool:mockPool(),parser,competitiveEngine:engine}),/RATE_LIMITER_REQUIRED/);
+ const automaticLimiterRuntime=createCompetitiveStagingRuntime({env,postgresPool:mockPool(),parser,competitiveEngine:engine});
+ assert.equal(automaticLimiterRuntime.enabled,true);
 });
