@@ -48,7 +48,7 @@ function validSnapshot(snapshot){
   snapshot.source_verified===true&&DIGEST.test(snapshot.report_digest??"")&&
   snapshot.source&&validId(snapshot.source.channel_id)&&validId(snapshot.source.message_id)&&
   validId(snapshot.source.source_id)&&Number.isSafeInteger(snapshot.source.update_id)&&
-  Array.isArray(snapshot.competitor_ids)&&Array.isArray(snapshot.pricing_observations);
+  Array.isArray(snapshot.competitor_ids)&&Array.isArray(snapshot.claim_values)&&Array.isArray(snapshot.pricing_observations);
 }
 
 /**
