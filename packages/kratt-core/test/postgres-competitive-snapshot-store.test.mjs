@@ -10,7 +10,7 @@ function fixtureSnapshot(id="snapshot-0001",updateId=91){
  return {snapshot_id:id,competitor_id:"salesforce",captured_at:at,source_verified:true,
   source:{channel_id:"telegram-channel-n100",message_id:"telegram-message-901",source_id:"telegram-source-n100",
    update_id:updateId,permalink:"https://t.me/bourne_updates/901"},
-  competitor_ids:["salesforce"],pricing_observations:[],ranking_snapshot:null,
+  competitor_ids:["salesforce"],claim_values:[],pricing_observations:[],ranking_snapshot:null,
   report_status:"EVIDENCE_INCOMPLETE",weekly_change_status:"INCOMPLETE_BASELINE_OR_EVIDENCE",
   report_digest:report.report_digest,snapshot_version:"kratt-competitor-snapshot/v1"};
 }
