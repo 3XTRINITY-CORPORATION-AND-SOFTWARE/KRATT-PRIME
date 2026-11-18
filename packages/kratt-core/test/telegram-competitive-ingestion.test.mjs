@@ -142,3 +142,23 @@ test("oversized and non-text updates fail closed before persistence",async()=>{
  assert.equal(result.reason,"TELEGRAM_MESSAGE_TOO_LARGE");
  assert.equal(store.state.claims.length,0);
 });
+
+test("feature and governance baselines are sourced only from the prior verified snapshot",async()=>{
+ const featureClaim={...claim,claim_id:"feature-01",claim_key:"agentforce-voice",kind:"FEATURE_CHANGE",
+  baseline_value:"attacker-provided-old-value",current_value:"enabled"};
+ const featureDraft={...draft,monitoring_checks:["FEATURE_CHANGE"],claims:[featureClaim]};
+ const prior={snapshot_id:"snapshot-prior-feature",verified:true,competitor_id:"salesforce",competitor_ids:["salesforce"],
+  pricing_observations:[],ranking_snapshot:null,
+  claim_values:[{claim_key:"agentforce-voice",kind:"FEATURE_CHANGE",competitor_id:"salesforce",value:"disabled",evidence_ids:["e-price"]}]};
+ const featureReport={...report,claims:[{claim_id:"feature-01",kind:"FEATURE_CHANGE",competitor_id:"salesforce",evidence_status:"SUPPORTED"}]};
+ const store=makeStore({baseline:prior});
+ const captured=[];
+ const {service}=makeIngest({store,parseSignal:async()=>featureDraft,engine:{analyze:({signal,baseline})=>{captured.push({signal,baseline});return featureReport;}}});
+ const result=await service.ingest({update:update(79),receivedSecret:secret});
+ assert.equal(result.status,"OK");
+ assert.equal(captured[0].signal.claims[0].baseline_value,"disabled");
+ assert.equal(captured[0].signal.claims[0].baseline_ref,"snapshot-prior-feature");
+ assert.deepEqual(store.state.commits[0].snapshot.claim_values,[{
+  claim_key:"agentforce-voice",kind:"FEATURE_CHANGE",competitor_id:"salesforce",value:"enabled",evidence_ids:["e-price"]
+ }]);
+});
