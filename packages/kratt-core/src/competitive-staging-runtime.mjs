@@ -59,7 +59,6 @@ export function createCompetitiveStagingRuntime({
     database:database.ready?"READY":"UNAVAILABLE",
     snapshot_chain:database.ready?"VALID":"NOT_VERIFIED",
     reason:database.reason,
-    diagnostic:database.diagnostic??null,
    });
   },
   mount(router){
