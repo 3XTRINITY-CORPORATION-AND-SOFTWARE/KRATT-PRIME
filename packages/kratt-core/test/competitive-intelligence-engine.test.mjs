@@ -38,7 +38,7 @@ function makeEngine({sourceVerified=true}={}){
 
 test("verified Telegram pricing catalogue is separated from a verified price change",()=>{
  const result=makeEngine().analyze({signal:signal()});
- assert.equal(result.status,"READY_FOR_REVIEW");
+ assert.equal(result.status,"EVIDENCE_INCOMPLETE");
  assert.equal(result.pricing.verified_observations.length,1);
  assert.equal(result.weekly_change_status,"INCOMPLETE_BASELINE_OR_EVIDENCE");
  assert.deepEqual(result.unassessed_checks,["PRICE_CHANGE","RANKING_CHANGE","NEW_ENTRANT","FEATURE_CHANGE","GOVERNANCE_CHANGE"]);
@@ -50,7 +50,7 @@ test("a price change is confirmed only against a same-SKU currency and unit base
  const current=offer("coworker-us","agentforce-coworker-user-license",50);
  const s=signal({baseline_snapshot_id:"snapshot-prior",monitoring_checks:["PRICE_CHANGE"],
   claims:[claim("price-change","PRICE_CHANGE",{baseline_ref:"snapshot-prior",observation_ref:"coworker-us"})]});
- const baseline={snapshot_id:"snapshot-prior",competitor_ids:["salesforce"],pricing_observations:[{...current,price:45,observed_at:"2026-11-10T12:00:00Z"}]};
+ const baseline={verified:true,snapshot_id:"snapshot-prior",competitor_ids:["salesforce"],pricing_observations:[{...current,price:45,observed_at:"2026-11-10T12:00:00Z"}]};
  const result=makeEngine().analyze({signal:s,baseline});
  assert.equal(result.claims[0].comparison.status,"CHANGE_CONFIRMED");
  assert.equal(result.claims[0].comparison.absolute_delta,5);
