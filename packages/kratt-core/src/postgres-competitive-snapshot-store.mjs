@@ -167,6 +167,31 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
   return result.rowCount===1;
  }
 
+ async function checkReady(){
+  const tables=[
+   "kratt_telegram_competitive_inbox",
+   "kratt_competitor_snapshots",
+   "kratt_competitor_snapshot_head",
+   "kratt_competitor_snapshot_events"
+  ];
+  try{
+   const client=await pool.connect();
+   try{
+    const found=[];
+    for(const table of tables){
+     const result=await client.query("SELECT to_regclass($1) AS relation",[table]);
+     if(!result.rows?.[0]?.relation)return Object.freeze({ready:false,reason:"COMPETITIVE_SCHEMA_INCOMPLETE",missing:table});
+     found.push(table);
+    }
+   }finally{client.release();}
+   const chain=await verifySnapshotChain();
+   if(chain.ok!==true)return Object.freeze({ready:false,reason:"COMPETITIVE_SNAPSHOT_CHAIN_INVALID"});
+   return Object.freeze({ready:true,reason:"COMPETITIVE_SNAPSHOT_STORE_READY",tables:found,chainSequence:chain.sequence});
+  }catch{
+   return Object.freeze({ready:false,reason:"COMPETITIVE_DATABASE_UNAVAILABLE"});
+  }
+ }
+
  async function verifySnapshotChain(){
   const client=await pool.connect();
   try{
@@ -193,5 +218,5 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
   finally{client.release();}
  }
 
- return Object.freeze({claimUpdate,getLatestSnapshot,commitSnapshot,releaseUpdate,verifySnapshotChain});
+ return Object.freeze({claimUpdate,getLatestSnapshot,commitSnapshot,releaseUpdate,verifySnapshotChain,checkReady});
 }
