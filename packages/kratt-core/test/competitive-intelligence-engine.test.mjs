@@ -60,7 +60,8 @@ test("a price change is confirmed only against a same-SKU currency and unit base
 test("currency mismatch cannot create a price-change conclusion",()=>{
  const current=offer("coworker-eu","agentforce-coworker-user-license",50,"EUR");
  const s=signal({baseline_snapshot_id:"snapshot-prior",monitoring_checks:["PRICE_CHANGE"],
-  claims:[claim("price-change","PRICE_CHANGE",{baseline_ref:"snapshot-prior",observation_ref:"coworker-eu"})]});
+  claims:[claim("price-change","PRICE_CHANGE",{baseline_ref:"snapshot-prior",observation_ref:"coworker-eu"})],
+  pricing_observations:[current]});
  const baseline={verified:true,snapshot_id:"snapshot-prior",competitor_ids:["salesforce"],pricing_observations:[{...current,currency:"USD",price:45,observed_at:"2026-11-10T12:00:00Z"}]};
  const result=makeEngine().analyze({signal:s,baseline});
  assert.equal(result.claims[0].comparison.status,"COMPARABLE_BASELINE_MISSING");
