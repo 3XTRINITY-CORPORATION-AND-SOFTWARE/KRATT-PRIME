@@ -61,8 +61,8 @@ function validateSignal(s){
  if(!Array.isArray(s.claims)||s.claims.length>64)return "CLAIMS_INVALID";
  const claimIds=new Set();
  for(const c of s.claims){
-  if(!exact(c,["claim_id","kind","competitor_id","statement","baseline_ref","observation_ref","baseline_value","current_value","assessments"])||
-   !validId(c.claim_id)||!KINDS.has(c.kind)||!validId(c.competitor_id)||
+  if(!exact(c,["claim_id","claim_key","kind","competitor_id","statement","baseline_ref","observation_ref","baseline_value","current_value","assessments"])||
+   !validId(c.claim_id)||!validId(c.claim_key)||!KINDS.has(c.kind)||!validId(c.competitor_id)||
    typeof c.statement!=="string"||c.statement.length<1||c.statement.length>1200||
    (c.baseline_ref!==null&&!validId(c.baseline_ref))||(c.observation_ref!==null&&!validId(c.observation_ref))||
    ![null,"string","number"].includes(c.baseline_value===null?null:typeof c.baseline_value)||
