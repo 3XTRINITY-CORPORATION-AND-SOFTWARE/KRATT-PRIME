@@ -212,7 +212,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
    schema_version:"kratt-competitive-intel/v1",signal_id:signal.signal_id,status,policy_authority:false,
    received_at:signal.received_at,period:signal.period,primary_competitor:signal.primary_competitor,
    telegram_source_verified:telegramVerified,
-   reflection_status:reflection.status,reflection_digest:reflection.report_digest??null,
+   reflection_status:reflection.status,reflection_digest:reflection.report_digest??null,verified_evidence_ids:Object.freeze([...verifiedEvidence].sort()),
    claims:comparisons,weekly_change_status:weeklyChangeStatus,confirmed_change_count:confirmedChanges,
    unassessed_checks:unassessedChecks,
    pricing:{verified_observations:trustedOffers,unverified_observation_ids:unavailableOffers},
