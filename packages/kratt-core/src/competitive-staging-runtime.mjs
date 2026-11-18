@@ -2,6 +2,7 @@ import { createPostgresCompetitiveIntelStore } from "./postgres-competitive-snap
 import { createTelegramCompetitiveIngestion } from "./telegram-competitive-ingestion.mjs";
 import { createTelegramCompetitiveWebhookHandler } from "../../kratt-orchestrator/src/telegram-competitive-webhook-handler.mjs";
 import { readCompetitiveStagingConfig } from "./competitive-staging-config.mjs";
+import { createPostgresTelegramIngressRateLimiter } from "./postgres-telegram-ingress-rate-limiter.mjs";
 
 /**
  * Assemble the staging-only Telegram -> parser -> MÕTLEMINE/CI engine -> PostgreSQL runtime.
@@ -23,7 +24,11 @@ export function createCompetitiveStagingRuntime({
  if(!postgresPool||typeof postgresPool.connect!=="function")throw new TypeError("STAGING_POSTGRES_POOL_REQUIRED");
  if(!parser||typeof parser.parse!=="function")throw new TypeError("STAGING_COMPETITIVE_PARSER_REQUIRED");
  if(!competitiveEngine||typeof competitiveEngine.analyze!=="function")throw new TypeError("STAGING_COMPETITIVE_ENGINE_REQUIRED");
- if(typeof allowRequest!=="function")throw new TypeError("STAGING_INGRESS_RATE_LIMITER_REQUIRED");
+ const ingressRateLimiter=allowRequest??createPostgresTelegramIngressRateLimiter(postgresPool,{
+  salt:config.rateLimitSalt,limit:config.rateLimit,windowMs:config.rateWindowMs,
+  ...(clock?{clock:()=>{const value=clock();return value instanceof Date?value.getTime():Number(value);}}:{}),
+ });
+ if(typeof ingressRateLimiter!=="function")throw new TypeError("STAGING_INGRESS_RATE_LIMITER_REQUIRED");
  const store=createPostgresCompetitiveIntelStore(postgresPool,{...(clock?{clock}:{})});
  const ingestion=createTelegramCompetitiveIngestion({
   webhookSecret:config.webhookSecret,
@@ -37,7 +42,7 @@ export function createCompetitiveStagingRuntime({
   maxTextBytes:config.maxTextBytes,
  });
  const handler=createTelegramCompetitiveWebhookHandler({
-  ingestion,allowRequest,maxBodyBytes:config.maxBodyBytes,
+  ingestion,allowRequest:ingressRateLimiter,maxBodyBytes:config.maxBodyBytes,
  });
  const runtime={
   enabled:true,
