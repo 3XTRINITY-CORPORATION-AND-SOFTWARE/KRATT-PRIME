@@ -7,7 +7,7 @@ const at="2026-11-18T18:00:00.000Z";
 const offer={observation_id:"price-01",competitor_id:"salesforce",sku:"agentforce-user-license",price:5,
  currency:"USD",billing_unit:"USER_MONTH",usage_model:"INCLUDED",region:"US",source_evidence_id:"e-price",
  requires_flex_credits:false,credits_per_action:null,credit_pack_price:null,credit_pack_size:null,observed_at:at};
-const claim={claim_id:"claim-price-01",kind:"PRICING_CATALOG",competitor_id:"salesforce",
+const claim={claim_id:"claim-price-01",claim_key:"agentforce-user-license",kind:"PRICING_CATALOG",competitor_id:"salesforce",
  statement:"Official price list includes an Agentforce user licence.",baseline_ref:null,observation_ref:null,
  baseline_value:null,current_value:null,assessments:[{evidence_id:"e-price",stance:"SUPPORTS",rationale_code:"official-pricing-page"}]};
 const draft={period:{label:"7d",starts_at:"2026-11-11T00:00:00Z",ends_at:"2026-11-18T00:00:00Z"},
