@@ -6,7 +6,7 @@ import { readCompetitiveStagingConfig } from "../src/competitive-staging-config.
 import { createCompetitiveStagingRuntime } from "../src/competitive-staging-runtime.mjs";
 
 const at="2026-11-18T19:30:00.000Z";
-const evidence={schema_version:KRATT_SCHEMA_VERSION,evidence_id:"e-price",subject:"Salesforce Agentforce price list",
+const evidence={schema_version:KRATT_SCHEMA_VERSION,evidence_id:"e-price",subject:"salesforce-agentforce-pricing",
  claim_type:"ARTIFACT_CREATED",source:{source_type:"official_web",source_id:"salesforce-pricing",revision:null},
  observed_at:at,verification_method:"trusted-source-fetch",result:"VERIFIED",
  artifact_digest:"sha256:"+"a".repeat(64),metadata:{url:"https://www.salesforce.com/agentforce/pricing/"}};
@@ -110,7 +110,7 @@ test("staging runtime composes store, parser and handler and reports a healthy e
  assert.equal(healthRoutes.length,1);
  assert.equal(healthRoutes[0].path,"/health/competitive-intel/ready");
  const readiness=await runtime.readiness();
- assert.equal(readiness.status,"READY");
+ assert.equal(readiness.status,"READY",JSON.stringify(readiness));
  assert.equal(readiness.environment,"staging");
  assert.equal(readiness.database,"READY");
  assert.equal(readiness.snapshot_chain,"VALID");
