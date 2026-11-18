@@ -24,10 +24,10 @@ test("webhook handler enforces method, JSON type and rate limiting",async()=>{
 test("webhook rejects oversize declared and streamed bodies before processing",async()=>{
  let called=0;
  const handle=createTelegramCompetitiveWebhookHandler({ingestion:{ingest:async()=>{called++;return{status:"OK"};}},allowRequest:async()=>true,maxBodyBytes:1024});
- let res=response();await handle(request("{}",{contentLength:2048}),res);assert.equal(res.statusCode,413);
+ let res=response();await handle(request("{}",{contentLength:2048}),res);assert.equal(res.statusCode,200);
  const large=request("x".repeat(2048));
  large.headers={"content-type":"application/json","x-telegram-bot-api-secret-token":"test-secret"};
- res=response();await handle(large,res);assert.equal(res.statusCode,413);assert.equal(called,0);
+ res=response();await handle(large,res);assert.equal(res.statusCode,200);assert.equal(called,0);
 });
 test("webhook forwards only bounded JSON plus Telegram secret and maps status",async()=>{
  let received;
@@ -37,4 +37,10 @@ test("webhook forwards only bounded JSON plus Telegram secret and maps status",a
  assert.equal(res.statusCode,200);
  assert.deepEqual(received,{update,receivedSecret:"test-secret"});
  assert.equal(res.headers["cache-control"],"no-store");
+});
+
+test("authenticated rejected or replay-blocked updates are acknowledged to prevent webhook retry loops",async()=>{
+ const handle=createTelegramCompetitiveWebhookHandler({ingestion:{ingest:async()=>({status:"BLOCKED",reason:"replay mismatch"})},allowRequest:async()=>true});
+ const res=response();await handle(request("{}",{}),res);
+ assert.equal(res.statusCode,200);
 });
