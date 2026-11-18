@@ -220,9 +220,12 @@ export function createAsyncTrustedAuthorizationRuntime({
       return { status: "BLOCKED", reason: "INTENT_RESERVATION_FAILED", idempotency_key: idempotencyKey };
     }
     if (!reservation || reservation.ok !== true) {
+      const reason = reservation?.reason ?? "INTENT_RESERVATION_FAILED";
+      const recorded = await appendDenial(task, identity.id, reason, "BLOCKED");
       return {
         status: "BLOCKED",
-        reason: reservation?.reason ?? "INTENT_RESERVATION_FAILED",
+        reason,
+        audit_recorded: recorded,
         idempotency_key: idempotencyKey,
       };
     }
