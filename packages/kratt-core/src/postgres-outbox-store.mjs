@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { canonicalTaskDigest, validateTaskEnvelope } from "./policy.mjs";
+import { canonicalTaskDigest } from "./policy.mjs";
+import { validateTaskEnvelope } from "./contracts.mjs";
 const SCHEMA="kratt-audit/v1", ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/, HEX=/^[a-f0-9]{64}$/, ZERO="0".repeat(64);
 const digest=v=>createHash("sha256").update(v,"utf8").digest("hex");
 const validId=v=>typeof v==="string"&&ID.test(v);
@@ -63,7 +64,7 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
  async function appendDecision(record){
   if(!record||record.schema_version!==SCHEMA||record.event_type!=="authorization.denied"||
    !validId(record.event_id)||!validTime(record.created_at)||!validId(record.actor_id)||!validId(record.task_id)||
-   typeof record.reason!=="string"||record.reason.length>160)return false;
+   typeof record.reason!=="string"||record.reason.length>160||!["DENY","BLOCKED","INSUFFICIENT_EVIDENCE"].includes(record.decision))return false;
   try{return await tx(pool,async c=>{await appendAudit(c,record);return true;});}catch{return false;}
  }
  async function claimOutbox({workerId,limit=10,leaseSeconds=60}={}){
