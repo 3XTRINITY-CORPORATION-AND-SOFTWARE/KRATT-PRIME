@@ -67,6 +67,37 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
    typeof record.reason!=="string"||record.reason.length>160||!["DENY","BLOCKED","INSUFFICIENT_EVIDENCE"].includes(record.decision))return false;
   try{return await tx(pool,async c=>{await appendAudit(c,record);return true;});}catch{return false;}
  }
+ async function verifyAuditChain(){
+  const client=await pool.connect();
+  let transaction=false;
+  try{
+   await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");transaction=true;
+   const result=await client.query("SELECT sequence,event_id,event_type,created_at,record_json,previous_hash,hash FROM kratt_audit_events ORDER BY sequence");
+   const head=await client.query("SELECT sequence,hash FROM kratt_audit_head WHERE singleton=TRUE");
+   await client.query("COMMIT");transaction=false;
+   let previous=ZERO,expected=1;
+   for(const row of result.rows){
+    const sequence=Number(row.sequence);
+    let record;
+    try{record=typeof row.record_json==="string"?JSON.parse(row.record_json):row.record_json;}catch{
+     return{ok:false,count:result.rows.length,broken_sequence:sequence};
+    }
+    const createdAt=row.created_at instanceof Date?row.created_at.toISOString():new Date(row.created_at).toISOString();
+    const json=stable(record);
+    if(sequence!==expected||row.previous_hash!==previous||auditHash(sequence,previous,json)!==String(row.hash).trim()||
+     record.event_id!==row.event_id||record.event_type!==row.event_type||record.created_at!==createdAt)
+     return{ok:false,count:result.rows.length,broken_sequence:sequence};
+    previous=String(row.hash).trim();expected++;
+   }
+   const latest=head.rows[0];
+   if(!latest||Number(latest.sequence)!==result.rows.length||String(latest.hash).trim()!==previous)
+    return{ok:false,count:result.rows.length,broken_sequence:result.rows.length+1};
+   return{ok:true,count:result.rows.length,head_hash:previous};
+  }catch{
+   if(transaction){try{await client.query("ROLLBACK");}catch{}}
+   return{ok:false,reason:"AUDIT_CHAIN_READ_FAILED"};
+  }finally{client.release();}
+ }
  async function claimOutbox({workerId,limit=10,leaseSeconds=60}={}){
   if(!validId(workerId)||!Number.isInteger(limit)||limit<1||limit>100||!Number.isInteger(leaseSeconds)||leaseSeconds<5||leaseSeconds>900)throw new TypeError("OUTBOX_CLAIM_OPTIONS_INVALID");
   const token=randomUUID(),at=clock().toISOString(),until=new Date(Date.parse(at)+leaseSeconds*1000).toISOString();
@@ -104,5 +135,5 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
    if(r.rowCount!==1)return false;await appendAudit(c,{schema_version:SCHEMA,event_id:"cancel:"+digest(taskId),event_type:"task.cancelled",created_at:at,actor_id:actorId,task_id:taskId});return true;
   });
  }
- return Object.freeze({appendDecision,reserveAuthorizedIntent,claimOutbox,finishOutbox,retryOutbox,cancelTask});
+ return Object.freeze({appendDecision,reserveAuthorizedIntent,claimOutbox,finishOutbox,retryOutbox,cancelTask,verifyAuditChain});
 }
