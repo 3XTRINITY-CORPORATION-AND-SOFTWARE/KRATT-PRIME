@@ -198,8 +198,8 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
    const chain=await verifySnapshotChain();
    if(chain.ok!==true)return Object.freeze({ready:false,reason:"COMPETITIVE_SNAPSHOT_CHAIN_INVALID"});
    return Object.freeze({ready:true,reason:"COMPETITIVE_SNAPSHOT_STORE_READY",tables:found,chainSequence:chain.sequence});
-  }catch{
-   return Object.freeze({ready:false,reason:"COMPETITIVE_DATABASE_UNAVAILABLE"});
+  }catch(error){
+   return Object.freeze({ready:false,reason:"COMPETITIVE_DATABASE_UNAVAILABLE",diagnostic:error instanceof Error?error.message:"UNKNOWN"});
   }
  }
 
