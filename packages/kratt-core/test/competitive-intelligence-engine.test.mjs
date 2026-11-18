@@ -17,7 +17,7 @@ const offer=(id,sku,price,currency="USD",billing_unit="USER_MONTH",usage_model="
  source_evidence_id:"price-evidence",requires_flex_credits:false,credits_per_action:null,
  credit_pack_price:null,credit_pack_size:null,observed_at:at,...overrides
 });
-const claim=(id,kind,options={})=>({claim_id:id,kind,competitor_id:"salesforce",statement:"Published Agentforce pricing is visible.",
+const claim=(id,kind,options={})=>({claim_id:id,claim_key:id,kind,competitor_id:"salesforce",statement:"Published Agentforce pricing is visible.",
  baseline_ref:null,observation_ref:null,baseline_value:null,current_value:null,
  assessments:[assessment("price-evidence")],...options});
 const signal=overrides=>({
