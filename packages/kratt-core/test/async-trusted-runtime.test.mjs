@@ -93,3 +93,14 @@ test("the runtime queues work and never executes a provider in the request path"
  assert.equal(result.status,"QUEUED");
  assert.equal(providerCalls,0);
 });
+
+
+test("failed atomic reservation is written as a separate denial audit event",async()=>{
+ const f=build({reserve:async()=>({ok:false,reason:"TASK_CANCELLED"})});
+ const result=await f.runtime.execute({principal:"session",task:f.task,approval:f.approval});
+ assert.equal(result.status,"BLOCKED");
+ assert.equal(result.reason,"TASK_CANCELLED");
+ assert.equal(result.audit_recorded,true);
+ const denial=f.calls.find(c=>c[0]==="denial");
+ assert.equal(denial[1].reason,"TASK_CANCELLED");
+});
