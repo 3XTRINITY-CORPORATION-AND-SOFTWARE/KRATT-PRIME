@@ -61,7 +61,7 @@ function validateUpdate(update,{allowedChannelIds,maxTextBytes}){
  const id=chatId(message.chat?.id);
  if(!id||!allowedChannelIds.has(id))return {ok:false,reason:"TELEGRAM_CHANNEL_NOT_ALLOWLISTED"};
  if(!Number.isSafeInteger(message.message_id)||message.message_id<1||
-  !Number.isSafeInteger(message.date)||message.date<1)
+  !Number.isSafeInteger(message.date)||message.date<1||!Number.isFinite(new Date(message.date*1000).getTime()))
   return {ok:false,reason:"TELEGRAM_MESSAGE_METADATA_INVALID"};
  const text=typeof message.text==="string"?message.text:
   typeof message.caption==="string"?message.caption:null;
@@ -132,23 +132,30 @@ export function createTelegramCompetitiveIngestion({
  async function ingest({update,receivedSecret}={}){
   if(!verifyCompetitiveTelegramSecret(receivedSecret,webhookSecret))
    return Object.freeze({status:"DENY",reason:"TELEGRAM_WEBHOOK_AUTHENTICATION_FAILED"});
+  let payloadDigest;
+  try{payloadDigest=sha(stable(update));}catch{return Object.freeze({status:"REJECTED",reason:"TELEGRAM_UPDATE_CANONICALIZATION_FAILED"});}
   const checked=validateUpdate(update,{allowedChannelIds:channels,maxTextBytes});
   if(!checked.ok)return Object.freeze({status:"REJECTED",reason:checked.reason});
   const {message,text,chatId:rawChatId,updateId,kind}=checked;
-  const nowValue=clock();
-  const receivedAt=(nowValue instanceof Date?nowValue:new Date(nowValue)).toISOString();
-  let payloadDigest;
-  try{payloadDigest=sha(stable(update));}catch{return Object.freeze({status:"REJECTED",reason:"TELEGRAM_UPDATE_CANONICALIZATION_FAILED"});}
-  const claim=await store.claimUpdate({botId,updateId,payloadDigest,receivedAt});
+  let receivedAt;
+  try{
+   const nowValue=clock();
+   const receivedDate=nowValue instanceof Date?new Date(nowValue.getTime()):new Date(nowValue);
+   if(!Number.isFinite(receivedDate.getTime()))throw new Error("CLOCK_INVALID");
+   receivedAt=receivedDate.toISOString();
+  }catch{return Object.freeze({status:"ERROR",reason:"TELEGRAM_TRUSTED_CLOCK_UNAVAILABLE"});}
+  let claim;
+  try{claim=await store.claimUpdate({botId,updateId,payloadDigest,receivedAt});}
+  catch{return Object.freeze({status:"ERROR",reason:"TELEGRAM_UPDATE_CLAIM_FAILED"});}
   if(claim?.status==="DUPLICATE")return Object.freeze({status:"DUPLICATE",reason:"TELEGRAM_UPDATE_ALREADY_COMMITTED",result:claim.result??null});
   if(claim?.status==="PENDING")return Object.freeze({status:"PENDING",reason:"TELEGRAM_UPDATE_LEASE_ACTIVE",updateId});
   if(claim?.status==="MISMATCH")return Object.freeze({status:"BLOCKED",reason:"TELEGRAM_UPDATE_ID_PAYLOAD_MISMATCH"});
   if(claim?.status!=="CLAIMED"||typeof claim.leaseToken!=="string")
    return Object.freeze({status:"ERROR",reason:"TELEGRAM_UPDATE_CLAIM_FAILED"});
   const leaseToken=claim.leaseToken;
-  const source=makeSource(message,updateId,receivedAt);
-  const sourceContext=Object.freeze({chatId:rawChatId,messageId:message.message_id,updateId,kind,source});
   try{
+   const source=makeSource(message,updateId,receivedAt);
+   const sourceContext=Object.freeze({chatId:rawChatId,messageId:message.message_id,updateId,kind,source});
    const draft=await parseSignal(Object.freeze({text,source:sourceContext,receivedAt,updateId}));
    if(!plain(draft)||!Array.isArray(draft.claims)||!Array.isArray(draft.evidence)||
     !Array.isArray(draft.pricing_observations)||!Array.isArray(draft.competitor_ids))
