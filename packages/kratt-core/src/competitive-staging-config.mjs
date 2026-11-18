@@ -37,9 +37,15 @@ export function readCompetitiveStagingConfig(env={}){
   new Set(channelIds).size!==channelIds.length)throw new TypeError("TELEGRAM_CHANNEL_ALLOWLIST_INVALID");
  const maxBodyBytes=env.TELEGRAM_COMPETITIVE_MAX_BODY_BYTES===undefined?64*1024:Number(env.TELEGRAM_COMPETITIVE_MAX_BODY_BYTES);
  const maxTextBytes=env.TELEGRAM_COMPETITIVE_MAX_TEXT_BYTES===undefined?16_384:Number(env.TELEGRAM_COMPETITIVE_MAX_TEXT_BYTES);
- if(!Number.isInteger(maxBodyBytes)||maxBodyBytes<1024||maxBodyBytes>1024*1024||
+ const rateLimitSalt=env.TELEGRAM_INGRESS_RATE_LIMIT_SALT;
+ const rateLimit=env.TELEGRAM_INGRESS_RATE_LIMIT===undefined?30:Number(env.TELEGRAM_INGRESS_RATE_LIMIT);
+ const rateWindowMs=env.TELEGRAM_INGRESS_RATE_WINDOW_MS===undefined?60_000:Number(env.TELEGRAM_INGRESS_RATE_WINDOW_MS);
+ if(typeof rateLimitSalt!=="string"||rateLimitSalt.length<16||rateLimitSalt.length>256||
+  !Number.isInteger(rateLimit)||rateLimit<1||rateLimit>10_000||
+  !Number.isInteger(rateWindowMs)||rateWindowMs<1000||rateWindowMs>24*60*60_000||
+  !Number.isInteger(maxBodyBytes)||maxBodyBytes<1024||maxBodyBytes>1024*1024||
   !Number.isInteger(maxTextBytes)||maxTextBytes<256||maxTextBytes>128*1024)
   throw new TypeError("TELEGRAM_COMPETITIVE_SIZE_LIMIT_INVALID");
  return Object.freeze({enabled:true,environment:deploymentEnvironment,route,maxBodyBytes,maxTextBytes,
-  channelIds:Object.freeze(channelIds),botId,webhookSecret});
+  channelIds:Object.freeze(channelIds),botId,webhookSecret,rateLimitSalt,rateLimit,rateWindowMs});
 }
