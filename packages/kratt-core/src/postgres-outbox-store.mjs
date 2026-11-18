@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { canonicalTaskDigest, validateTaskEnvelope } from "./policy.mjs";
 const SCHEMA="kratt-audit/v1", ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/, HEX=/^[a-f0-9]{64}$/, ZERO="0".repeat(64);
 const digest=v=>createHash("sha256").update(v,"utf8").digest("hex");
 const validId=v=>typeof v==="string"&&ID.test(v);
@@ -26,18 +27,29 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
  }
  async function reserveAuthorizedIntent({task,principal,approval,idempotencyKey,providerPayload}={}){
   const now=clock(),at=(now instanceof Date?now:new Date(now)).toISOString();
-  if(!task||!validId(task.task_id)||!principal||!validId(principal.id)||task.actor!==principal.id||
-   !validId(approval?.key_id)||!validId(approval?.nonce)||!validId(approval?.approval_id)||!validTime(approval?.expires_at)||
-   Date.parse(approval.expires_at)<=Date.parse(at)||!validIdempotencyKey(idempotencyKey)||!HEX.test(approval?.request_digest??"")||!HEX.test(approval?.signature_digest??""))
+  const validatedTask=validateTaskEnvelope(task);
+  if(!validatedTask.ok||!principal||!validId(principal.id)||validatedTask.value.actor!==principal.id)
+   return{ok:false,reason:"RESERVATION_INPUT_INVALID"};
+  task=validatedTask.value;
+  const taskDigest=canonicalTaskDigest(task);
+  const expectedKey=typeof taskDigest==="string"?"kratt:"+task.task_id+":"+taskDigest.slice(7):null;
+  const hasApproval=approval!==null&&approval!==undefined;
+  if(!validId(task.constraints?.provider)||!validIdempotencyKey(idempotencyKey)||idempotencyKey!==expectedKey||
+   (hasApproval&&(!validId(approval?.key_id)||!validId(approval?.nonce)||!validId(approval?.approval_id)||
+    !validTime(approval?.expires_at)||Date.parse(approval.expires_at)<=Date.parse(at)||
+    !/^sha256:[a-f0-9]{64}$/.test(approval?.request_digest??"")||approval.request_digest!==taskDigest||!HEX.test(approval?.signature_digest??""))))
    return{ok:false,reason:"RESERVATION_INPUT_INVALID"};
   const intentId="intent:"+digest(idempotencyKey),outboxId="outbox:"+digest(idempotencyKey);
   const event={schema_version:SCHEMA,event_id:intentId,event_type:"dispatch.intent_committed",created_at:at,actor_id:principal.id,task_id:task.task_id,
-   provider:task.constraints?.provider??"unknown",operation:task.action,idempotency_key:idempotencyKey,approval_key_id:approval.key_id,approval_id:approval.approval_id,request_digest:approval.request_digest};
+   provider:task.constraints.provider,operation:task.action,idempotency_key:idempotencyKey,
+   ...(hasApproval?{approval_key_id:approval.key_id,approval_id:approval.approval_id,request_digest:approval.request_digest}: {})};
   try{return await tx(pool,async c=>{
    await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",[task.task_id]);
-   const nonce=await c.query("INSERT INTO kratt_approval_nonces(key_id,nonce,approval_id,expires_at,consumed_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(key_id,nonce) DO NOTHING RETURNING key_id",
-    [approval.key_id,approval.nonce,approval.approval_id,approval.expires_at,at]);
-   if(nonce.rowCount!==1)return{ok:false,reason:"APPROVAL_REPLAYED"};
+   if(hasApproval){
+    const nonce=await c.query("INSERT INTO kratt_approval_nonces(key_id,nonce,approval_id,expires_at,consumed_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(key_id,nonce) DO NOTHING RETURNING key_id",
+     [approval.key_id,approval.nonce,approval.approval_id,approval.expires_at,at]);
+    if(nonce.rowCount!==1)return{ok:false,reason:"APPROVAL_REPLAYED"};
+   }
    const cancelled=await c.query("SELECT task_id FROM kratt_cancelled_tasks WHERE task_id=$1 FOR UPDATE",[task.task_id]);
    if(cancelled.rowCount)return{ok:false,reason:"TASK_CANCELLED"};
    const intent=await c.query("INSERT INTO kratt_dispatch_intents(idempotency_key,task_id,actor_id,provider,operation,status,created_at) VALUES($1,$2,$3,$4,$5,'INTENT_COMMITTED',$6) ON CONFLICT(idempotency_key) DO NOTHING RETURNING idempotency_key",
@@ -47,6 +59,12 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
     [outboxId,idempotencyKey,event.provider,JSON.stringify(providerPayload??{task}),at]);
    const audit=await appendAudit(c,event);return{ok:true,intent_id:intentId,outbox_id:outboxId,audit_sequence:audit.sequence};
   });}catch(e){if(e?.code==="23505")return{ok:false,reason:"DUPLICATE_OR_REPLAYED"};throw e;}
+ }
+ async function appendDecision(record){
+  if(!record||record.schema_version!==SCHEMA||record.event_type!=="authorization.denied"||
+   !validId(record.event_id)||!validTime(record.created_at)||!validId(record.actor_id)||!validId(record.task_id)||
+   typeof record.reason!=="string"||record.reason.length>160)return false;
+  try{return await tx(pool,async c=>{await appendAudit(c,record);return true;});}catch{return false;}
  }
  async function claimOutbox({workerId,limit=10,leaseSeconds=60}={}){
   if(!validId(workerId)||!Number.isInteger(limit)||limit<1||limit>100||!Number.isInteger(leaseSeconds)||leaseSeconds<5||leaseSeconds>900)throw new TypeError("OUTBOX_CLAIM_OPTIONS_INVALID");
@@ -85,5 +103,5 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
    if(r.rowCount!==1)return false;await appendAudit(c,{schema_version:SCHEMA,event_id:"cancel:"+digest(taskId),event_type:"task.cancelled",created_at:at,actor_id:actorId,task_id:taskId});return true;
   });
  }
- return Object.freeze({reserveAuthorizedIntent,claimOutbox,finishOutbox,retryOutbox,cancelTask});
+ return Object.freeze({appendDecision,reserveAuthorizedIntent,claimOutbox,finishOutbox,retryOutbox,cancelTask});
 }
