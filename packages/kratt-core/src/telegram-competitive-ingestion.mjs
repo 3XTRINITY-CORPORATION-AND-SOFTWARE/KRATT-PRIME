@@ -73,8 +73,12 @@ function validateUpdate(update,{allowedChannelIds,maxTextBytes}){
 
 function buildSnapshot({signal,report,source,updateId,receivedAt,snapshotId}){
  const verified=new Set(report.verified_evidence_ids??[]);
- const verifiedCompetitors=[...new Set(signal.competitor_ids.filter(competitorId=>
-  report.claims.some(claim=>claim.competitor_id===competitorId&&claim.evidence_status==="SUPPORTED")))].sort();
+ const supportedClaims=signal.claims.filter(claim=>report.claims.some(result=>
+  result.claim_id===claim.claim_id&&result.competitor_id===claim.competitor_id&&result.evidence_status==="SUPPORTED"));
+ const verifiedCompetitors=[...new Set(supportedClaims.map(claim=>claim.competitor_id))].sort();
+ const claimValues=supportedClaims.filter(claim=>["FEATURE_CHANGE","GOVERNANCE_CHANGE"].includes(claim.kind)&&claim.current_value!==null)
+  .map(claim=>Object.freeze({claim_key:claim.claim_key,kind:claim.kind,competitor_id:claim.competitor_id,
+   value:claim.current_value,evidence_ids:Object.freeze(claim.assessments.map(a=>a.evidence_id).filter(id=>verified.has(id)).sort())}));
  const ranking=signal.ranking_snapshot&&verified.has(signal.ranking_snapshot.source_evidence_id)
   ?signal.ranking_snapshot:null;
  const offers=report.pricing?.verified_observations??[];
@@ -90,6 +94,7 @@ function buildSnapshot({signal,report,source,updateId,receivedAt,snapshotId}){
    permalink:source.permalink,
   },
   competitor_ids:Object.freeze(verifiedCompetitors),
+  claim_values:Object.freeze(claimValues),
   pricing_observations:Object.freeze([...offers]),
   ranking_snapshot:ranking?Object.freeze(ranking):null,
   report_status:report.status,
@@ -160,8 +165,13 @@ export function createTelegramCompetitiveIngestion({
      received_at:receivedAt,
      telegram_source:source,
      baseline_snapshot_id:baselineId,
-     claims:draft.claims.map(claim=>({...claim,
-      baseline_ref:TEMPORAL.has(claim.kind)?baselineId:null})),
+     claims:draft.claims.map(claim=>{
+      const priorValue=["FEATURE_CHANGE","GOVERNANCE_CHANGE"].includes(claim.kind)
+       ?baseline?.claim_values?.find(item=>item.claim_key===claim.claim_key&&item.kind===claim.kind&&item.competitor_id===claim.competitor_id)?.value??null
+       :null;
+      return {...claim,baseline_ref:TEMPORAL.has(claim.kind)?baselineId:null,
+       baseline_value:["FEATURE_CHANGE","GOVERNANCE_CHANGE"].includes(claim.kind)?priorValue:null};
+     }),
     };
     const report=engine.analyze({signal,baseline});
     if(!report||["INPUT_INVALID","SOURCE_UNVERIFIED","EVIDENCE_INPUT_INVALID","REFLECTION_FAILED"].includes(report.status))
