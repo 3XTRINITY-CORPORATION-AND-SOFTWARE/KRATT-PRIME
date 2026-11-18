@@ -28,7 +28,7 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
   const now=clock(),at=(now instanceof Date?now:new Date(now)).toISOString();
   if(!task||!validId(task.task_id)||!principal||!validId(principal.id)||task.actor!==principal.id||
    !validId(approval?.key_id)||!validId(approval?.nonce)||!validId(approval?.approval_id)||!validTime(approval?.expires_at)||
-   Date.parse(approval.expires_at)<=Date.parse(at)||!validId(idempotencyKey)||!HEX.test(approval?.request_digest??"")||!HEX.test(approval?.signature_digest??""))
+   Date.parse(approval.expires_at)<=Date.parse(at)||!validIdempotencyKey(idempotencyKey)||!HEX.test(approval?.request_digest??"")||!HEX.test(approval?.signature_digest??""))
    return{ok:false,reason:"RESERVATION_INPUT_INVALID"};
   const intentId="intent:"+digest(idempotencyKey),outboxId="outbox:"+digest(idempotencyKey);
   const event={schema_version:SCHEMA,event_id:intentId,event_type:"dispatch.intent_committed",created_at:at,actor_id:principal.id,task_id:task.task_id,
@@ -62,8 +62,10 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
    const event={schema_version:SCHEMA,event_id:"outcome:"+digest(item.idempotency_key),event_type:outcome.status==="COMPLETED"?"dispatch.completed":"dispatch.failed",
     created_at:at,actor_id:actorId,task_id:taskId,provider:item.provider,idempotency_key:item.idempotency_key,result:{status:outcome.status.toLowerCase()}};
    await appendAudit(c,event);
-   await c.query("UPDATE kratt_dispatch_intents SET status=$1,updated_at=$2 WHERE idempotency_key=$3 AND status='INTENT_COMMITTED'",[outcome.status,at,item.idempotency_key]);
-   await c.query("UPDATE kratt_dispatch_outbox SET status='DONE',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=$1 WHERE outbox_id=$2",[at,outboxId]);
+   const iu=await c.query("UPDATE kratt_dispatch_intents SET status=$1,updated_at=$2 WHERE idempotency_key=$3 AND status='INTENT_COMMITTED' RETURNING idempotency_key",[outcome.status,at,item.idempotency_key]);
+   if(iu.rowCount!==1)throw new Error("INTENT_STATE_CONFLICT");
+   const ou=await c.query("UPDATE kratt_dispatch_outbox SET status='DONE',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=$1 WHERE outbox_id=$2 AND status='LEASED' AND lease_token=$3 RETURNING outbox_id",[at,outboxId,leaseToken]);
+   if(ou.rowCount!==1)throw new Error("OUTBOX_LEASE_CONFLICT");
    return{ok:true};
   });
  }
