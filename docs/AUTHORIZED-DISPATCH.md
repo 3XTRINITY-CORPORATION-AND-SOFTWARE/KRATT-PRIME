@@ -42,3 +42,10 @@ Adapter results are reduced to a small allowlisted audit projection: status, pro
 ## Security boundary
 
 The runtime is an orchestration boundary, not an identity provider, key manager, database, or provider implementation. Trusted public keys and nonce stores remain deployment-controlled. No production credentials, production adapters, deployments, or writes are enabled by this commit.
+
+
+## SQLite implementation
+
+A concrete single-host implementation is provided by `packages/kratt-core/src/sqlite-command-store.mjs`. It uses SQLite transactions to atomically check cancellation, claim the idempotency key, and append the intent audit event. Outcome append and intent status update are also atomic. The audit table rejects ordinary UPDATE/DELETE statements and maintains a SHA-256 hash chain. See [SQLITE-COMMAND-STORE.md](./SQLITE-COMMAND-STORE.md) for limits and operational requirements.
+
+The SQLite adapter is not configured with a production database in this repository. Multi-host deployments must supply a shared transactional adapter with equivalent semantics.
