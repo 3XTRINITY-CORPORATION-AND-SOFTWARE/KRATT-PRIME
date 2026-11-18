@@ -19,6 +19,7 @@ const stable=v=>{
  if(Array.isArray(v))return "["+v.map(stable).join(",")+"]";
  return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+stable(v[k])).join(",")+"}";
 };
+const same=(a,b)=>stable(a)===stable(b);
 const validText=(v,max)=>typeof v==="string"&&v.length>0&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const uniqueStrings=(v,re,min,max)=>Array.isArray(v)&&v.length>=min&&v.length<=max&&v.every(x=>typeof x==="string"&&re.test(x))&&new Set(v).size===v.length;
 const TASK_KEYS=["task_id","factory","agent_id","objective","repository","branch","base_sha","scope","allowed_actions","forbidden_actions","required_evidence","resource_budget","protocol_version"];
