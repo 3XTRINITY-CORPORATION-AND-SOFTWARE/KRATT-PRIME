@@ -68,3 +68,17 @@ test("caller cannot choose an idempotency key detached from the canonical task d
  const r=await store.reserveAuthorizedIntent({task,principal:{id:task.actor},approval:approval(),idempotencyKey:"kratt:attacker:"+"a".repeat(64)});
  assert.equal(r.reason,"RESERVATION_INPUT_INVALID");assert.equal(p.calls.length,0);
 });
+
+
+test("audit-chain verifier accepts an empty initialized PostgreSQL audit log",async()=>{
+ const auditPool={async connect(){return{
+  async query(sql){
+   if(sql.startsWith("BEGIN")||sql==="COMMIT"||sql==="ROLLBACK")return{rowCount:0,rows:[]};
+   if(sql.includes("FROM kratt_audit_events"))return{rowCount:0,rows:[]};
+   if(sql.includes("FROM kratt_audit_head"))return{rowCount:1,rows:[{sequence:0,hash:zero}]};
+   throw new Error("Unexpected verification SQL: "+sql);
+  },release(){}
+ };}};
+ const store=createPostgresOutboxStore(auditPool,{clock:()=>new Date(at)});
+ assert.deepEqual(await store.verifyAuditChain(),{ok:true,count:0,head_hash:zero});
+});
