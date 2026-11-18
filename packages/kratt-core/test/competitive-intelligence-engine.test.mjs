@@ -28,7 +28,7 @@ const signal=overrides=>({
  baseline_snapshot_id:null,
  claims:[claim("catalog-claim","PRICING_CATALOG")],evidence:[evidence("price-evidence")],
  pricing_observations:[offer("coworker-us","agentforce-coworker-user-license",50)],
- ranking_snapshot:{universe_id:"agent-platforms-top10",observed_at:at,entries:[{competitor_id:"salesforce",rank:1}]},
+ ranking_snapshot:{universe_id:"agent-platforms-top10",observed_at:at,source_evidence_id:"price-evidence",entries:[{competitor_id:"salesforce",rank:1}]},
  ...overrides
 });
 function makeEngine({sourceVerified=true}={}){
