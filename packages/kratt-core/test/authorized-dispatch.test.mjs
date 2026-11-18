@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
+import { createTrustedAuthorizationRuntime } from "../src/trusted-runtime.mjs";
+import { canonicalApprovalPayload, canonicalTaskDigest } from "../src/policy.mjs";
 import { createAuthorizedDispatchRuntime } from "../src/authorized-dispatch.mjs";
 import { KRATT_SCHEMA_VERSION } from "../src/contracts.mjs";
 
@@ -184,4 +187,120 @@ test("rejects malformed provider results before treating them as completed", asy
 
 test("requires durable storage and trusted authentication dependencies", () => {
   assert.throws(() => createAuthorizedDispatchRuntime({}), /TRUSTED_AUTHORIZATION_RUNTIME_REQUIRED/);
+});
+
+test("composes real Ed25519 approval verification, durable nonce consumption and dispatch replay denial", async () => {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const nowMs = Date.parse(at);
+  const writeTask = task({
+    action: "repo.write",
+    constraints: { provider: "github" },
+    required_evidence: [{ claim_type: "TESTS_PASSED", subject: "KRATT-PRIME", required: true, revision: null }],
+  });
+  const trustedContext = {
+    schema_version: KRATT_SCHEMA_VERSION,
+    authorities: ["repository.write"],
+    allowed_targets: [{ resource_type: "repository", resource_id: "KRATT-PRIME" }],
+    policies: [{
+      action: "repo.write",
+      required_authority: "repository.write",
+      target_types: ["repository"],
+      side_effect_class: "EXTERNAL_WRITE",
+      approval_required: true,
+      approval_authority: "repository.approve",
+      required_claims: ["TESTS_PASSED"],
+    }],
+    evaluated_at: at,
+  };
+  const trustedEvidence = [{
+    schema_version: KRATT_SCHEMA_VERSION,
+    evidence_id: "evidence-dispatch-01",
+    subject: "KRATT-PRIME",
+    claim_type: "TESTS_PASSED",
+    source: { source_type: "github", source_id: "run-verified-01", revision: "0123456789012345678901234567890123456789" },
+    observed_at: at,
+    verification_method: "signed-attestation",
+    result: "VERIFIED",
+    artifact_digest: null,
+    metadata: {},
+  }];
+  const unsigned = {
+    schema_version: KRATT_SCHEMA_VERSION,
+    approval_id: "approval-dispatch-01",
+    task_id: writeTask.task_id,
+    actor: writeTask.actor,
+    provider: "github",
+    operation: writeTask.action,
+    target: writeTask.target,
+    request_digest: canonicalTaskDigest(writeTask),
+    key_id: "dispatch-key",
+    nonce: "dispatch-nonce-01",
+    issued_at: at,
+    expires_at: "2026-11-18T15:04:00.000Z",
+    decision: "APPROVE",
+    approved_by: "security-owner",
+    authority: "repository.approve",
+    signature: "placeholder",
+  };
+  const approval = {
+    ...unsigned,
+    signature: sign(null, Buffer.from(canonicalApprovalPayload(unsigned), "utf8"), privateKey).toString("base64url"),
+  };
+  const consumed = new Set();
+  const authorizationRuntime = createTrustedAuthorizationRuntime({
+    trustedApprovalKeys: [{
+      key_id: "dispatch-key",
+      approver_id: "security-owner",
+      public_key_pem: publicKey.export({ type: "spki", format: "pem" }),
+      authorities: ["repository.approve"],
+    }],
+    nonceStore: {
+      consume(keyId, nonce) {
+        const key = keyId + ":" + nonce;
+        if (consumed.has(key)) return false;
+        consumed.add(key);
+        return true;
+      },
+    },
+    verifyEvidence: (record) => record.source.source_type === "github" &&
+      record.verification_method === "signed-attestation",
+    now: () => nowMs,
+  });
+  const intents = new Set();
+  const audit = [];
+  let dispatchCount = 0;
+  const runtime = createAuthorizedDispatchRuntime({
+    authorizationRuntime,
+    authenticatePrincipal: async () => ({ id: "operator-01", active: true }),
+    loadTrustedContext: async () => trustedContext,
+    loadEvidence: async () => trustedEvidence,
+    commandStore: {
+      async appendDecision(record) { audit.push(record); return true; },
+      async commitAuthorizedIntent({ idempotencyKey, record }) {
+        if (intents.has(idempotencyKey)) return false;
+        intents.add(idempotencyKey);
+        audit.push(record);
+        return true;
+      },
+      async appendOutcome({ record }) { audit.push(record); return true; },
+    },
+    providerAdapters: {
+      github: {
+        async dispatch() {
+          dispatchCount += 1;
+          return { status: "completed", provider_reference: "mock-provider-commit" };
+        },
+      },
+    },
+    now: () => nowMs,
+  });
+
+  const first = await runtime.execute({ principal: "authenticated-session", task: writeTask, approval });
+  assert.equal(first.status, "COMPLETED");
+  const replay = await runtime.execute({ principal: "authenticated-session", task: writeTask, approval });
+  assert.equal(replay.status, "DENIED");
+  assert.equal(dispatchCount, 1);
+  assert.equal(audit.filter(record => record.event_type === "dispatch.intent_committed").length, 1);
+  assert.equal(audit.filter(record => record.event_type === "dispatch.completed").length, 1);
+  assert.equal(audit.filter(record => record.event_type === "authorization.denied").length, 1);
 });
