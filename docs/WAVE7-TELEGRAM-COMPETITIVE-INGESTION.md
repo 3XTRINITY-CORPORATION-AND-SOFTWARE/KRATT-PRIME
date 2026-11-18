@@ -36,8 +36,9 @@ Connect the existing Telegram webhook trust boundary to the Wave 6 Competitive I
 2. Mount `createTelegramCompetitiveWebhookHandler` on a POST route and supply the existing rate-limiter adapter.
 3. Configure `createTelegramCompetitiveIngestion` with the same server-side secret, bot ID and allowed channel IDs.
 4. Supply `parseSignal`. It must treat Telegram text as untrusted data and return only a strict Wave 6 signal draft. A model-based parser must be instructed not to follow instructions embedded in the message and must not have tools or write authority.
-5. Supply a Wave 6 engine whose `verifyTelegramSource` callback verifies the already-authenticated, allowlisted channel provenance and whose MÕTLEMINE verifier checks each evidence record.
-6. Apply migration 0002 through the reviewed migration runner and configure least-privilege database roles before connecting a live pool.
+5. Ensure the parser supplies stable `claim_key` values for each feature/governance attribute; never provide a self-asserted prior value as the comparison baseline.
+6. Supply a Wave 6 engine whose `verifyTelegramSource` callback verifies the already-authenticated, allowlisted channel provenance and whose MÕTLEMINE verifier checks each evidence record.
+7. Apply migration 0002 through the reviewed migration runner and configure least-privilege database roles before connecting a live pool.
 
 ### Update types and replay safety
 
@@ -55,8 +56,9 @@ Official references:
 
 The database marks a snapshot as integrity-verified only when its canonical JSON digest matches the stored digest. The snapshot projection itself is deliberately narrower than the inbound message:
 - Pricing records are copied only from the Wave 6 report's verified pricing observations.
-- Competitor IDs are copied only when at least one associated claim was accepted as `SUPPORTED` by MÕTLEMINE.
+- Competitor IDs are copied only when at least one associated claim was accepted as `SUPPORTED` by MÕTLEMINE. Feature/governance values are retained under a stable `claim_key` only when the associated claim and its evidence were accepted.
 - Ranking data is copied only when its explicit `source_evidence_id` is in the verified evidence set.
+- Feature and governance comparisons overwrite parser-supplied baseline values with the matching `claim_key` value from the prior verified snapshot. Missing prior values remain `null` and therefore unassessed.
 - The source reference records Telegram channel/message aliases, update ID and optional public permalink. The full message text is not persisted by this store.
 
 The `verified: true` marker therefore means the returned database snapshot passed integrity checking and its projected fields had passed the configured evidence gate at ingestion. It does not certify that a competitor claim is true beyond the configured source and evidence verifiers.
