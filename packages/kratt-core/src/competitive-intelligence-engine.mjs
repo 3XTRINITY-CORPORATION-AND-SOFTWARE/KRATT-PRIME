@@ -1,7 +1,7 @@
 import { validateEvidenceRecord } from "./contracts.mjs";
 
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/;
-const TIME=/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/;
+const TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\\.\d{1,3})?Z$/;
 const KINDS=new Set(["PRICING_CATALOG","PRICE_CHANGE","RANKING_CHANGE","NEW_ENTRANT","FEATURE_CHANGE","GOVERNANCE_CHANGE"]);
 const TEMPORAL=new Set(["PRICE_CHANGE","RANKING_CHANGE","NEW_ENTRANT","FEATURE_CHANGE","GOVERNANCE_CHANGE"]);
 const BILLING=new Set(["USER_MONTH","CONVERSATION","CREDITS_100K"]);
@@ -13,6 +13,7 @@ const exact=(v,keys)=>plain(v)&&Reflect.ownKeys(v).length===keys.length&&keys.ev
 });
 const validId=v=>typeof v==="string"&&ID.test(v);
 const validTime=v=>typeof v==="string"&&TIME.test(v)&&Number.isFinite(Date.parse(v));
+const validHttps=v=>{try{return new URL(v).protocol==="https:";}catch{return false;}};
 const uniqIds=v=>Array.isArray(v)&&new Set(v).size===v.length&&v.every(validId);
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const finiteNonnegative=v=>typeof v==="number"&&Number.isFinite(v)&&v>=0;
@@ -52,7 +53,7 @@ function validateSignal(s){
   !validId(s.telegram_source.channel_id)||!validId(s.telegram_source.message_id)||
   !validId(s.telegram_source.source_id)||!validId(s.telegram_source.source_type)||
   !validTime(s.telegram_source.observed_at)||
-  (s.telegram_source.permalink!==null&&(typeof s.telegram_source.permalink!=="string"||!/^https:\\/\\//.test(s.telegram_source.permalink))))
+  (s.telegram_source.permalink!==null&&(typeof s.telegram_source.permalink!=="string"||!validHttps(s.telegram_source.permalink))))return "TELEGRAM_PROVENANCE_INVALID";
   return "TELEGRAM_PROVENANCE_INVALID";
  if(!Array.isArray(s.evidence)||s.evidence.length>256)return "EVIDENCE_SET_INVALID";
  const evidenceIds=new Set();
@@ -149,7 +150,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
    return Object.freeze({status:"INPUT_INVALID",reason:"COMPETITIVE_INTEL_LIMIT_EXCEEDED",policy_authority:false});
   let telegramVerified=false;
   try{telegramVerified=verifyTelegramSource(Object.freeze(structuredClone(signal.telegram_source)))===true;}catch{telegramVerified=false;}
-  const baselineMatches=!!baseline&&baseline.snapshot_id===signal.baseline_snapshot_id&&validId(baseline.snapshot_id);
+  const baselineMatches=!!baseline&&baseline.verified===true&&baseline.snapshot_id===signal.baseline_snapshot_id&&validId(baseline.snapshot_id);
   let reflection;
   try{
    reflection=motlemineEngine.analyze({analysis_id:signal.signal_id,evidence:signal.evidence,
@@ -178,7 +179,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
       previous_value:c.baseline_value,current_value:c.current_value};
     }
     if(comparison.status==="DELTA_FOUND")comparison={...comparison,status:evidenceSupported?"CHANGE_CONFIRMED":"CHANGE_UNVERIFIED"};
-    else if(comparison.status==="NO_CHANGE_FOUND"&&evidenceSupported)comparison={...comparison,status:"CLAIM_NOT_REPRODUCED"};
+    else if(comparison.status==="NO_CHANGE_FOUND")comparison={...comparison,status:evidenceSupported?"CLAIM_NOT_REPRODUCED":"NO_CHANGE_UNVERIFIED"};
    }
    comparisons.push(Object.freeze({claim_id:c.claim_id,kind:c.kind,competitor_id:c.competitor_id,
     evidence_status:reviewed?.status??"MISSING",comparison}));
@@ -187,7 +188,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
   const unavailableOffers=signal.pricing_observations.filter(o=>!trustedOffers.includes(o)).map(o=>o.observation_id);
   const mismatchedRecommendations=signal.recommendation_competitor_ids.filter(id=>!signal.competitor_ids.includes(id));
   const temporalResults=comparisons.filter(c=>TEMPORAL.has(c.kind));
-  const checkedKinds=new Set(temporalResults.filter(c=>["CHANGE_CONFIRMED","NO_CHANGE_FOUND","CLAIM_NOT_REPRODUCED"].includes(c.comparison.status)).map(c=>c.kind));
+  const checkedKinds=new Set(temporalResults.filter(c=>["CHANGE_CONFIRMED","CLAIM_NOT_REPRODUCED"].includes(c.comparison.status)).map(c=>c.kind));
   const unassessedChecks=signal.monitoring_checks.filter(k=>!checkedKinds.has(k));
   const confirmedChanges=temporalResults.filter(c=>c.comparison.status==="CHANGE_CONFIRMED").length;
   const weeklyChangeStatus=confirmedChanges?"CHANGES_CONFIRMED":
@@ -195,7 +196,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
   const status=!telegramVerified?"SOURCE_UNVERIFIED":
    reflection.status==="REVIEW_REQUIRED"?"REVIEW_REQUIRED":
    reflection.status==="INPUT_INVALID"?"EVIDENCE_INPUT_INVALID":
-   unavailableOffers.length||reflection.status==="EVIDENCE_INCOMPLETE"?"EVIDENCE_INCOMPLETE":"READY_FOR_REVIEW";
+   unavailableOffers.length||reflection.status==="EVIDENCE_INCOMPLETE"||unassessedChecks.length?"EVIDENCE_INCOMPLETE":"READY_FOR_REVIEW";
   const report={
    schema_version:"kratt-competitive-intel/v1",signal_id:signal.signal_id,status,policy_authority:false,
    received_at:signal.received_at,period:signal.period,primary_competitor:signal.primary_competitor,
