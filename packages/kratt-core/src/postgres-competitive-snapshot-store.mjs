@@ -178,6 +178,7 @@ export function createPostgresCompetitiveIntelStore(pool,{clock=()=>new Date(),l
  async function checkReady(){
   const tables=[
    "kratt_telegram_competitive_inbox",
+   "kratt_telegram_ingress_rate_limits",
    "kratt_competitor_snapshots",
    "kratt_competitor_snapshot_head",
    "kratt_competitor_snapshot_events"
