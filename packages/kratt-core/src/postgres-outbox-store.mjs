@@ -12,7 +12,7 @@ function stable(v){
  return "{"+keys.map(k=>JSON.stringify(k)+":"+stable(v[k])).join(",")+"}";
 }
 const auditHash=(n,p,j)=>digest(String(n)+"\n"+p+"\n"+j);
-async function tx(pool,work){const c=await pool.connect();try{await c.query("BEGIN");const r=await work(c);await c.query("COMMIT");return r;}catch(e){try{await c.query("ROLLBACK");}catch{}throw e;}finally{c.release();}}
+async function tx(pool,work){const c=await pool.connect();try{await c.query("BEGIN");const r=await work(c);if(r===false||(r&&r.ok===false)){await c.query("ROLLBACK");return r;}await c.query("COMMIT");return r;}catch(e){try{await c.query("ROLLBACK");}catch{}throw e;}finally{c.release();}}
 export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
  if(!pool||typeof pool.connect!=="function")throw new TypeError("POSTGRES_POOL_REQUIRED");
  if(typeof clock!=="function")throw new TypeError("TRUSTED_CLOCK_REQUIRED");
@@ -33,6 +33,7 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
   const event={schema_version:SCHEMA,event_id:intentId,event_type:"dispatch.intent_committed",created_at:at,actor_id:principal.id,task_id:task.task_id,
    provider:task.constraints?.provider??"unknown",operation:task.action,idempotency_key:idempotencyKey,approval_key_id:approval.key_id,approval_id:approval.approval_id,request_digest:approval.request_digest};
   try{return await tx(pool,async c=>{
+   await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",[task.task_id]);
    const nonce=await c.query("INSERT INTO kratt_approval_nonces(key_id,nonce,approval_id,expires_at,consumed_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(key_id,nonce) DO NOTHING RETURNING key_id",
     [approval.key_id,approval.nonce,approval.approval_id,approval.expires_at,at]);
    if(nonce.rowCount!==1)return{ok:false,reason:"APPROVAL_REPLAYED"};
@@ -76,7 +77,8 @@ export function createPostgresOutboxStore(pool,{clock=()=>new Date()}={}){
  }
  async function cancelTask({taskId,actorId}={}){
   if(!validId(taskId)||!validId(actorId))return false;const at=clock().toISOString();return tx(pool,async c=>{
-   const r=await c.query("INSERT INTO kratt_cancelled_tasks(task_id,cancelled_at,actor_id) VALUES($1,$2,$3) ON CONFLICT(task_id) DO NOTHING RETURNING task_id",[taskId,at,actorId]);
+   await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",[taskId]);
+  const r=await c.query("INSERT INTO kratt_cancelled_tasks(task_id,cancelled_at,actor_id) VALUES($1,$2,$3) ON CONFLICT(task_id) DO NOTHING RETURNING task_id",[taskId,at,actorId]);
    if(r.rowCount!==1)return false;await appendAudit(c,{schema_version:SCHEMA,event_id:"cancel:"+digest(taskId),event_type:"task.cancelled",created_at:at,actor_id:actorId,task_id:taskId});return true;
   });
  }
