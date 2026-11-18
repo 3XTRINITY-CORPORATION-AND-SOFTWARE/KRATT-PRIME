@@ -1,7 +1,7 @@
 import { validateEvidenceRecord } from "./contracts.mjs";
 
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/;
-const TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\\.\d{1,3})?Z$/;
+const TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const KINDS=new Set(["PRICING_CATALOG","PRICE_CHANGE","RANKING_CHANGE","NEW_ENTRANT","FEATURE_CHANGE","GOVERNANCE_CHANGE"]);
 const TEMPORAL=new Set(["PRICE_CHANGE","RANKING_CHANGE","NEW_ENTRANT","FEATURE_CHANGE","GOVERNANCE_CHANGE"]);
 const BILLING=new Set(["USER_MONTH","CONVERSATION","CREDITS_100K"]);
