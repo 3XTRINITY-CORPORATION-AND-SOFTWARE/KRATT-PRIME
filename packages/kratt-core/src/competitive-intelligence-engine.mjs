@@ -54,7 +54,6 @@ function validateSignal(s){
   !validId(s.telegram_source.source_id)||!validId(s.telegram_source.source_type)||
   !validTime(s.telegram_source.observed_at)||
   (s.telegram_source.permalink!==null&&(typeof s.telegram_source.permalink!=="string"||!validHttps(s.telegram_source.permalink))))return "TELEGRAM_PROVENANCE_INVALID";
-  return "TELEGRAM_PROVENANCE_INVALID";
  if(!Array.isArray(s.evidence)||s.evidence.length>256)return "EVIDENCE_SET_INVALID";
  const evidenceIds=new Set();
  for(const e of s.evidence){const v=validateEvidenceRecord(e);if(!v.ok||evidenceIds.has(e.evidence_id))return "EVIDENCE_INVALID_OR_DUPLICATE";evidenceIds.add(e.evidence_id);}
@@ -75,7 +74,12 @@ function validateSignal(s){
  }
  if(!Array.isArray(s.pricing_observations)||s.pricing_observations.length>128)return "PRICING_OBSERVATIONS_INVALID";
  const offerIds=new Set();
- for(const o of s.pricing_observations){const err=validateOffer(o);if(err||offerIds.has(o.observation_id)||!evidenceIds.has(o.source_evidence_id))return err??"PRICING_OBSERVATION_DUPLICATE";}
+ for(const o of s.pricing_observations){
+  const err=validateOffer(o);if(err)return err;
+  if(offerIds.has(o.observation_id))return "PRICING_OBSERVATION_DUPLICATE";
+  if(!evidenceIds.has(o.source_evidence_id))return "PRICING_EVIDENCE_NOT_FOUND";
+  offerIds.add(o.observation_id);
+ }
  if(s.ranking_snapshot!==null){
   if(!exact(s.ranking_snapshot,["universe_id","observed_at","entries"])||!validId(s.ranking_snapshot.universe_id)||
    !validTime(s.ranking_snapshot.observed_at)||!Array.isArray(s.ranking_snapshot.entries)||s.ranking_snapshot.entries.length>100)
@@ -168,6 +172,7 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
     else if(c.kind==="PRICE_CHANGE"){
      const current=signal.pricing_observations.find(o=>o.observation_id===c.observation_ref);
      comparison=current?comparePrice(current,baseline):{status:"CURRENT_PRICE_OBSERVATION_MISSING"};
+     if(current&&!verifiedEvidence.has(current.source_evidence_id))comparison={status:"CURRENT_PRICE_EVIDENCE_UNVERIFIED"};
     }else if(c.kind==="RANKING_CHANGE")comparison=compareRanks(signal.ranking_snapshot,baseline);
     else if(c.kind==="NEW_ENTRANT"){
      const old=new Set(baseline.competitor_ids??[]);
