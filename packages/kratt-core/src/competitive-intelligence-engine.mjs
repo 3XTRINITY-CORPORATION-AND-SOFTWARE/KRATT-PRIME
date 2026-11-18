@@ -82,8 +82,8 @@ function validateSignal(s){
   offerIds.add(o.observation_id);
  }
  if(s.ranking_snapshot!==null){
-  if(!exact(s.ranking_snapshot,["universe_id","observed_at","entries"])||!validId(s.ranking_snapshot.universe_id)||
-   !validTime(s.ranking_snapshot.observed_at)||!Array.isArray(s.ranking_snapshot.entries)||s.ranking_snapshot.entries.length>100)
+  if(!exact(s.ranking_snapshot,["universe_id","observed_at","source_evidence_id","entries"])||!validId(s.ranking_snapshot.universe_id)||
+   !validTime(s.ranking_snapshot.observed_at)||!validId(s.ranking_snapshot.source_evidence_id)||!evidenceIds.has(s.ranking_snapshot.source_evidence_id)||!Array.isArray(s.ranking_snapshot.entries)||s.ranking_snapshot.entries.length>100)
    return "RANKING_SNAPSHOT_INVALID";
   const ranks=new Set(),competitors=new Set();
   for(const r of s.ranking_snapshot.entries)if(!exact(r,["competitor_id","rank"])||!validId(r.competitor_id)||
@@ -174,7 +174,10 @@ export function createCompetitiveIntelligenceEngine({motlemineEngine,verifyTeleg
      const current=signal.pricing_observations.find(o=>o.observation_id===c.observation_ref);
      comparison=current?comparePrice(current,baseline):{status:"CURRENT_PRICE_OBSERVATION_MISSING"};
      if(current&&!verifiedEvidence.has(current.source_evidence_id))comparison={status:"CURRENT_PRICE_EVIDENCE_UNVERIFIED"};
-    }else if(c.kind==="RANKING_CHANGE")comparison=compareRanks(signal.ranking_snapshot,baseline);
+    }else if(c.kind==="RANKING_CHANGE"){
+     comparison=compareRanks(signal.ranking_snapshot,baseline);
+     if(signal.ranking_snapshot&&!verifiedEvidence.has(signal.ranking_snapshot.source_evidence_id))comparison={status:"CURRENT_RANKING_EVIDENCE_UNVERIFIED"};
+    }
     else if(c.kind==="NEW_ENTRANT"){
      const old=new Set(baseline.competitor_ids??[]);
      const added=signal.competitor_ids.filter(id=>!old.has(id));
