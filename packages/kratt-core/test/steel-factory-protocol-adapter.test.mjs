@@ -37,3 +37,11 @@ test("receipt claims are not accepted from the protocol flag alone",async()=>{
  const rejected=await adapter.verifyReceipt({envelope,receipt,expectedAction:"repo:write",expectedScope:envelope.scope});
  assert.equal(rejected.reason,"STEEL_RECEIPT_NOT_INDEPENDENTLY_VERIFIED");
 });
+
+
+test("rejects impossible calendar timestamps in STEEL action receipts",async()=>{
+ const adapter=createSteelFactoryProtocolAdapter({verifyActionReceipt:async()=>true,evidenceClaimMap:{tests_passed:"TESTS_PASSED"}});
+ const invalid={...receipt,timestamp:"2026-02-30T16:00:00.000Z"};
+ const result=await adapter.verifyReceipt({envelope,receipt:invalid,expectedAction:"repo:write",expectedScope:envelope.scope});
+ assert.equal(result.reason,"STEEL_PROTOCOL_INPUT_INVALID");
+});
