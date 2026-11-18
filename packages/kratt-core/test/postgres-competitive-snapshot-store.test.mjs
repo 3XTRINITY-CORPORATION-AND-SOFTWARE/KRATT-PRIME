@@ -76,6 +76,10 @@ function fakePool(){
    }
    return{rowCount:0,rows:[]};
   }
+  if(q.startsWith("select record_json from kratt_competitor_snapshot_events where snapshot_id=$1")){
+   const row=state.events.filter(e=>e.snapshot_id===params[0]).at(-1);
+   return{rowCount:row?1:0,rows:row?[{record_json:row.record_json}]:[]};
+  }
   if(q.startsWith("select snapshot_id,competitor_id,snapshot_json,snapshot_digest from kratt_competitor_snapshots")){
    const rows=state.snapshots.filter(x=>x.competitor_id===params[0])
     .sort((a,b)=>Date.parse(b.captured_at)-Date.parse(a.captured_at)||b.snapshot_id.localeCompare(a.snapshot_id));
