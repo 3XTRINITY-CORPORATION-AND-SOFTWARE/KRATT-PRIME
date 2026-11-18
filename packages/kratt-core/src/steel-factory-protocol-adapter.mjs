@@ -22,6 +22,13 @@ const stable=v=>{
 const same=(a,b)=>stable(a)===stable(b);
 const validText=(v,max)=>typeof v==="string"&&v.length>0&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const uniqueStrings=(v,re,min,max)=>Array.isArray(v)&&v.length>=min&&v.length<=max&&v.every(x=>typeof x==="string"&&re.test(x))&&new Set(v).size===v.length;
+const validUtc=v=>{
+ if(typeof v!=="string")return false;
+ const m=/^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d{1,3}))?Z$/.exec(v);
+ if(!m)return false;
+ const t=Date.parse(v);
+ return Number.isFinite(t)&&new Date(t).toISOString()===m[1]+"."+(m[2]??"").padEnd(3,"0")+"Z";
+};
 const TASK_KEYS=["task_id","factory","agent_id","objective","repository","branch","base_sha","scope","allowed_actions","forbidden_actions","required_evidence","resource_budget","protocol_version"];
 const RECEIPT_KEYS=["task_id","agent_id","repository","base_sha","action","scope","result","evidence","verification_state","timestamp","protocol_version"];
 function validateEnvelope(v){
@@ -67,7 +74,7 @@ export function createSteelFactoryProtocolAdapter({verifyActionReceipt,evidenceC
   const checked=validateEnvelope(envelope);if(!checked.ok)return checked;const e=checked.value;
   if(actor!==e.agent_id||!ID.test(actor??"")||!ACTION.test(action??"")||!e.allowed_actions.includes(action)||
    e.forbidden_actions.includes(action)||!uniqueStrings(scope,PATH,1,64)||scope.some(p=>!e.scope.includes(p))||
-   !ID.test(provider??"")||!Number.isFinite(Date.parse(createdAt)))return{ok:false,reason:"STEEL_TASK_SCOPE_OR_ACTOR_MISMATCH"};
+   !ID.test(provider??"")||!validUtc(createdAt))return{ok:false,reason:"STEEL_TASK_SCOPE_OR_ACTOR_MISMATCH"};
   const claims=e.required_evidence.map(token=>evidenceClaimMap[token]);
   if(claims.some(claim=>!claim))return{ok:false,reason:"STEEL_EVIDENCE_CLAIM_MAPPING_REQUIRED"};
   const resourceId="repo-"+digest(e.repository).slice(0,32);
