@@ -341,9 +341,19 @@ export async function createWave8Engines({config,fetchImpl=globalThis.fetch}={})
  const competitiveEngine=createCompetitiveIntelligenceEngine({
   motlemineEngine,verifyTelegramSource:createTelegramSourceVerifier(config.telegramAllowedChannelIds),
  });
- const parseSignal=createOpenAiCompetitiveSignalParser({
+ const rawEngine=createCompetitiveIntelligenceEngine({
+  motlemineEngine,verifyTelegramSource:createTelegramSourceVerifier(config.telegramAllowedChannelIds),
+ });
+ const competitiveEngine=Object.freeze({
+  analyze(input){try{return rawEngine.analyze(input);}finally{sourceCapture.clear();}},
+ });
+ const rawParser=createOpenAiCompetitiveSignalParser({
   apiKey:config.openAiApiKey,model:config.openAiModel,sourceCapture,fetchImpl,
  });
+ const parseSignal=async input=>{
+  try{return await rawParser(input);}
+  catch(error){sourceCapture.clear();throw error;}
+ };
  return Object.freeze({sourceCapture,motlemineEngine,competitiveEngine,parseSignal});
 }
 
