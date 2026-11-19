@@ -291,7 +291,7 @@ export function createTelegramBotApiAdmin({token,fetchImpl=globalThis.fetch}={})
   const current=await getWebhookInfo();
   if(current.url&&current.url!==url&&!allowReplace)throw new Error("TELEGRAM_WEBHOOK_ALREADY_CONFIGURED_ELSEWHERE");
   const result=await call("setWebhook",{
-   url,secret_token:secretToken,max_connections:10,
+   url,secret_token:secretToken,max_connections:3,
    allowed_updates:["channel_post","edited_channel_post"],
    drop_pending_updates:false,
   });
