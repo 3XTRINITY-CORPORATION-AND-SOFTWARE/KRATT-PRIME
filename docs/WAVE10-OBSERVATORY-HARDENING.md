@@ -14,6 +14,8 @@
 - Validates list filters before storage access and returns HTTP 400 for invalid limits, statuses, module IDs or unknown filters instead of disguising client errors as storage failures.
 - Removes internal previous/hash-chain values from the operation-event read API response. Integrity verification remains a boolean/count contract.
 - Rejects accessor-backed evidence references before reading nested fields.
+- Re-verifies every persisted operation projection field against the append-only event chain, not just the status/event/sequence pointer. A tampered correlation ID, module, capability, timestamps, references or evidence list now fails integrity verification.
+- Runs both CI workflows on the hardening branch and on PRs targeting the Phase 10 candidate branch, preventing the previous silent CI gap for stacked draft PRs.
 
 ## API contract
 
@@ -24,9 +26,9 @@
 
 ## Verification
 
-Run `npm run wave10:verify` for all contract tests, application typecheck and build. Run `npm run wave10:observatory:verify` only with an operator-provisioned staging `.env.wave8`; that command is read-only.
+Run `npm run wave10:verify` for all contract tests, application typecheck and build. Both CI workflows now include this hardening branch and PRs targeting `feature/phase10-runtime-observatory-v1`. Run `npm run wave10:observatory:verify` only with an operator-provisioned staging `.env.wave8`; that command is read-only.
 
-The hardening does not claim that AURA consumes the API, that all platform modules emit events, or that production/staging credentials and database grants are configured. Base44 source access currently reports an app-access/plan blocker, and Lovable's previous build turn was blocked by exhausted workspace credits; neither platform is modified or represented as integrated by this commit.
+The hardening does not claim that AURA consumes the API, that all platform modules emit events, or that production/staging credentials and database grants are configured. Base44's existing KRATT Integration Hub passes `npm run build`; it has no `test` script yet, and the builder status endpoint still reports a stale generic build error, so backend/entity and hosted-function tests remain unverified. The separate Lovable Runtime Observatory UI was updated in commit `8f8a243fd3063d6a9cfd7bc4642553d30327ac00`; its agent reports 30 tests passing and typecheck clean, but the final build/browser check was not rerun after credits were exhausted. Neither project was published.
 
 ## Release boundaries
 
