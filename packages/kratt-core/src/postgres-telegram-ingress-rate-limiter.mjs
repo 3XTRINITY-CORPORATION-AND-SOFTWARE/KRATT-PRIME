@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 /**
  * Multi-instance fixed-window ingress limiter.
  * Only an HMAC of the trusted socket peer address is persisted; forwarded
- * headers are intentionally ignored. Requires migration 0002.
+ * headers are intentionally ignored. Requires migration 0003.
  */
 export function createPostgresTelegramIngressRateLimiter(pool,{
  salt,limit=30,windowMs=60_000,clock=()=>Date.now(),cleanupEvery=1000,

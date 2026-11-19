@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
-import { loadWave8Config, createTelegramBotApiAdmin, createInMemoryTelegramRateLimiter,
+import { loadWave8Config, createTelegramBotApiAdmin,
  createPostgresPoolFromConfig, createWave8Engines } from "./wave8-live-connectors.mjs";
+import { createPostgresTelegramIngressRateLimiter } from "../../kratt-core/src/postgres-telegram-ingress-rate-limiter.mjs";
 import { createPostgresCompetitiveIntelStore } from "../../kratt-core/src/postgres-competitive-snapshot-store.mjs";
 import { createTelegramCompetitiveIngestion } from "../../kratt-core/src/telegram-competitive-ingestion.mjs";
 import { createTelegramCompetitiveWebhookHandler } from "./telegram-competitive-webhook-handler.mjs";
@@ -19,9 +20,10 @@ async function assertSchema(pool){
   "SELECT to_regclass('public.kratt_telegram_competitive_inbox') AS inbox,"+
   "to_regclass('public.kratt_competitor_snapshots') AS snapshots,"+
   "to_regclass('public.kratt_competitor_snapshot_events') AS events,"+
-  "to_regclass('public.kratt_competitor_snapshot_head') AS head");
+  "to_regclass('public.kratt_competitor_snapshot_head') AS head,"
+  "to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits");
  const row=result.rows?.[0]??{};
- const missing=["inbox","snapshots","events","head"].filter(key=>!row[key]);
+ const missing=["inbox","snapshots","events","head","rate_limits"].filter(key=>!row[key]);
  if(missing.length)throw new Error("WAVE8_DATABASE_SCHEMA_MISSING:"+missing.join(","));
 }
 
@@ -39,8 +41,10 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
    allowedChannelIds:config.telegramAllowedChannelIds,parseSignal:engines.parseSignal,
    engine:engines.competitiveEngine,store,
   });
-  const rateLimiter=createInMemoryTelegramRateLimiter({
-   salt:config.telegramRateLimitSalt,limit:30,windowMs:60_000,
+  const rateLimiter=createPostgresTelegramIngressRateLimiter(pool,{
+   salt:config.telegramRateLimitSalt,
+   limit:config.telegramIngressRateLimit,
+   windowMs:config.telegramIngressRateWindowMs,
   });
   const telegram=createTelegramBotApiAdmin({token:config.telegramBotToken,fetchImpl});
   const bot=await telegram.getMe();
@@ -51,19 +55,18 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
   const server=createServer(async(request,response)=>{
    const url=new URL(request.url??"/","http://localhost");
    if(request.method==="GET"&&url.pathname==="/health/live")
-    return json(response,200,{status:"LIVE",service:"kratt-prime-wave8"});
+    return json(response,200,{status:"LIVE",service:"kratt-prime-staging"});
    if(request.method==="GET"&&url.pathname==="/health/ready"){
     let chain={ok:false,reason:"NOT_CHECKED"};
-    try{await pool.query("SELECT 1");chain=await store.verifySnapshotChain();dbReady=chain.ok!==false;}
+    try{await pool.query("SELECT 1");chain=await store.verifySnapshotChain();dbReady=chain.ok===true;}
     catch{dbReady=false;}
     try{webhookInfo=await telegram.getWebhookInfo();telegramReady=true;}
     catch{telegramReady=false;}
     const webhookReady=webhookInfo.url===config.webhookPublicUrl;
     const ready=dbReady&&telegramReady;
     return json(response,ready?200:503,{status:ready?"READY":"NOT_READY",
-     checks:{postgres:dbReady,telegramApi:telegramReady,webhookConfigured:webhookReady,snapshotChain:chain.ok===true},
-     webhook:{configuredUrl:config.webhookPublicUrl,activeUrl:webhookInfo.url||null},
-     details:chain.ok===true?undefined:chain.reason??"CHECK_FAILED"});
+     service:"kratt-prime-staging",
+     checks:{postgres:dbReady,telegramApi:telegramReady,webhookConfigured:webhookReady,snapshotChain:chain.ok===true}});
    }
    if(request.method==="POST"&&url.pathname===config.webhookPath)
     return handler(request,response);

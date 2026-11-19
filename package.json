@@ -16,7 +16,9 @@
     "start:wave8": "node packages/kratt-orchestrator/src/wave8-server.mjs",
     "wave8:check": "node scripts/wave8-check-connections.mjs",
     "wave8:migrate": "node scripts/wave8-apply-migration.mjs",
-    "wave8:webhook": "node scripts/wave8-configure-webhook.mjs"
+    "wave8:webhook": "node scripts/wave8-configure-webhook.mjs",
+    "wave9:migrate": "node scripts/wave8-apply-migration.mjs",
+    "wave9:verify": "npm test && npm run typecheck && npm run build"
   },
   "dependencies": {
     "react": "^19.2.8",

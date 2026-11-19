@@ -37,9 +37,14 @@ test("Wave 8 config requires HTTPS, DB TLS-compatible URL and explicit model-pro
  assert.equal(config.allowOpenAiProcessing,true);
  assert.equal(config.databaseUrl.hostname,"db.example.com");
  assert.equal(config.enableWebhookWrites,false);
+ assert.equal(config.telegramIngressRateLimit,30);
+ assert.equal(config.telegramIngressRateWindowMs,60_000);
  assert.throws(()=>loadWave8Config(env({WAVE8_ALLOW_TELEGRAM_TEXT_TO_OPENAI:"false"})),/WAVE8_CONFIG_INVALID/);
  assert.throws(()=>loadWave8Config(env({WEBHOOK_PUBLIC_URL:"http://staging.example.com/hook"})),/WAVE8_CONFIG_INVALID/);
  assert.throws(()=>loadWave8Config(env({DATABASE_URL:"postgresql://kratt:secret@db.example.com/kratt?sslmode=disable"})),/WAVE8_CONFIG_INVALID/);
+ assert.throws(()=>loadWave8Config(env({TELEGRAM_INGRESS_RATE_LIMIT:"0"})),/WAVE8_CONFIG_INVALID/);
+ assert.throws(()=>loadWave8Config(env({TELEGRAM_INGRESS_RATE_LIMIT:"10001"})),/WAVE8_CONFIG_INVALID/);
+ assert.throws(()=>loadWave8Config(env({TELEGRAM_INGRESS_RATE_WINDOW_MS:"999"})),/WAVE8_CONFIG_INVALID/);
 });
 
 test("Telegram source verifier binds message lineage to an allowlisted channel",()=>{

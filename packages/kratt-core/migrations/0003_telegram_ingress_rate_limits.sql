@@ -1,4 +1,4 @@
--- KRATT PRIME Wave 8: shared staging Telegram ingress rate limiter.
+-- KRATT PRIME Wave 9: shared, multi-instance staging Telegram ingress rate limiter.
 -- Kept separate so deployments that already applied migration 0002 receive this schema.
 BEGIN;
 

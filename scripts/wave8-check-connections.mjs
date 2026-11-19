@@ -10,8 +10,9 @@ try{
   "SELECT to_regclass('public.kratt_telegram_competitive_inbox') AS inbox,"+
   "to_regclass('public.kratt_competitor_snapshots') AS snapshots,"+
   "to_regclass('public.kratt_competitor_snapshot_events') AS events,"+
-  "to_regclass('public.kratt_competitor_snapshot_head') AS head");
- const missing=["inbox","snapshots","events","head"].filter(k=>!schema.rows?.[0]?.[k]);
+  "to_regclass('public.kratt_competitor_snapshot_head') AS head,"
+  +"to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits");
+ const missing=["inbox","snapshots","events","head","rate_limits"].filter(k=>!schema.rows?.[0]?.[k]);
  const store=createPostgresCompetitiveIntelStore(pool);
  const chain=await store.verifySnapshotChain();
  const bot=await createTelegramBotApiAdmin({token:config.telegramBotToken}).getMe();

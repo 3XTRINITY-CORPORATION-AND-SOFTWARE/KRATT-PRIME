@@ -35,6 +35,8 @@ export function loadWave8Config(env=process.env){
  const openAiModel=required("OPENAI_MODEL");
  const publicUrl=required("WEBHOOK_PUBLIC_URL");
  const rateSalt=required("TELEGRAM_RATE_LIMIT_SALT");
+ const ingressRateLimit=Number(env.TELEGRAM_INGRESS_RATE_LIMIT??30);
+ const ingressRateWindowMs=Number(env.TELEGRAM_INGRESS_RATE_WINDOW_MS??60_000);
  const allowOpenAiProcessing=env.WAVE8_ALLOW_TELEGRAM_TEXT_TO_OPENAI==="true";
  const channelRaw=required("TELEGRAM_ALLOWED_CHANNEL_IDS");
  const hostsRaw=required("COMPETITOR_SOURCE_ALLOWLIST");
@@ -50,6 +52,8 @@ export function loadWave8Config(env=process.env){
  if(!webhookUrl||webhookUrl.protocol!=="https:"||!webhookUrl.hostname||webhookUrl.username||webhookUrl.password||webhookUrl.search||webhookUrl.hash||webhookUrl.pathname==="/"||
   (webhookUrl.port!==""&&!["80","88","443","8443"].includes(webhookUrl.port)))errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
  if(rateSalt.length<32||rateSalt.length>256)errors.push("TELEGRAM_RATE_LIMIT_SALT_LENGTH");
+ if(!Number.isInteger(ingressRateLimit)||ingressRateLimit<1||ingressRateLimit>10_000)errors.push("TELEGRAM_INGRESS_RATE_LIMIT_FORMAT");
+ if(!Number.isInteger(ingressRateWindowMs)||ingressRateWindowMs<1_000||ingressRateWindowMs>24*60*60_000)errors.push("TELEGRAM_INGRESS_RATE_WINDOW_MS_FORMAT");
  if(!allowOpenAiProcessing)errors.push("WAVE8_OPENAI_TELEGRAM_TEXT_CONSENT_REQUIRED");
  if(hosts.length<1||hosts.some(x=>!/^([a-z0-9-]+\.)*[a-z0-9-]+\.[a-z]{2,}$/i.test(x)))errors.push("COMPETITOR_SOURCE_ALLOWLIST_FORMAT");
  const minSources=Number(env.MIN_INDEPENDENT_SOURCES??2);
@@ -75,6 +79,8 @@ export function loadWave8Config(env=process.env){
   telegramBotId:botId,
   telegramAllowedChannelIds:Object.freeze(channels),
   telegramRateLimitSalt:rateSalt,
+  telegramIngressRateLimit:ingressRateLimit,
+  telegramIngressRateWindowMs:ingressRateWindowMs,
   databaseUrl:database,
   databaseCaCertPath:env.DATABASE_CA_CERT_PATH?.trim()||null,
   openAiApiKey:openAiKey,

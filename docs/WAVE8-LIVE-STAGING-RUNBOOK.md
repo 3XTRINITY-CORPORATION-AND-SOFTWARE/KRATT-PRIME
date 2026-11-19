@@ -16,7 +16,7 @@ This is a staging runtime. It does not configure a production endpoint, publish 
 ## Runtime files
 
 - \`packages/kratt-orchestrator/src/wave8-live-connectors.mjs\`
-  - environment validation, PostgreSQL pool factory, Telegram Bot API admin client, OpenAI parser, source capture/verifier, Telegram channel verifier and process-local ingress rate limiter.
+  - environment validation, PostgreSQL pool factory, Telegram Bot API admin client, OpenAI parser, source capture/verifier, Telegram channel verifier and bounded rate-limit configuration and Wave 9 PostgreSQL-shared ingress limiter.
 - \`packages/kratt-orchestrator/src/wave8-server.mjs\`
   - assembles the Wave 7 store and ingress, checks PostgreSQL schema and Telegram bot identity, serves the webhook path and health endpoints.
 - \`scripts/wave8-check-connections.mjs\`
@@ -105,9 +105,9 @@ Official driver references:
    - \`WEBHOOK_PUBLIC_URL\`, \`COMPETITOR_SOURCE_ALLOWLIST\`;
    - explicit \`WAVE8_ALLOW_TELEGRAM_TEXT_TO_OPENAI=true\`.
 3. Install Node.js 22. In a non-container staging runtime install the pinned PostgreSQL driver with \`npm install --no-save --package-lock=false pg@8.23.1\`. The provided Dockerfile performs this installation as part of the image build.
-4. Apply migration 0002 only against the intended staging database:
+4. Apply migrations 0002 and 0003 against the intended staging database (the script runs both in order):
    \`\`\`sh
-   WAVE8_APPLY_STAGING_MIGRATIONS=true node --env-file=.env.wave8 scripts/wave8-apply-migration.mjs
+   WAVE9_APPLY_STAGING_MIGRATIONS=true node --env-file=.env.wave8 scripts/wave8-apply-migration.mjs
    \`\`\`
    The command also requires \`APP_ENV=staging\` and \`WAVE8_EXPECTED_DATABASE\` to match the actual database name.
 5. Start the server behind the HTTPS reverse proxy:
@@ -129,7 +129,7 @@ Official driver references:
 ## Health endpoints
 
 - \`GET /health/live\` — process liveness.
-- \`GET /health/ready\` — PostgreSQL, Telegram API and snapshot-chain readiness, plus the webhook configuration state.
+- \`GET /health/ready\` — PostgreSQL, Telegram API and snapshot-chain readiness, plus a boolean webhook-configuration state. The response intentionally excludes webhook URLs and internal failure diagnostics.
 
 Readiness is allowed before \`setWebhook\` so that the service can come online before Telegram is pointed at it. The connection-check script still reports webhook mismatch as a failed end-to-end preflight.
 
@@ -140,7 +140,7 @@ Readiness is allowed before \`setWebhook\` so that the service can come online b
 - No migration is run during startup.
 - No model tool-calling is enabled.
 - Telegram text is not stored in the PostgreSQL inbox or snapshot payload; the source text is hashed for replay matching.
-- The local limiter is process-local; enforce shared rate limits at the reverse proxy / ingress gateway for multi-replica staging.
+- Wave 9 stores only HMACs of trusted socket peer addresses in PostgreSQL, so the fixed-window ingress limit is shared across replicas. The limiter fails closed when the database is unavailable. Forwarded headers are intentionally not used.
 - Do not expose port 8787 publicly. Only the HTTPS reverse proxy should reach the Node upstream.
 - There is no automatic webhook replacement or pending-update deletion.
 - The first real staging run must be supervised and checked against the database logs and Telegram \`getWebhookInfo\`.
