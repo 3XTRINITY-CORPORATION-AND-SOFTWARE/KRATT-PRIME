@@ -2,6 +2,7 @@
 -- Apply with the reviewed migration runner. No Telegram credentials are stored here.
 BEGIN;
 
+
 CREATE TABLE IF NOT EXISTS kratt_telegram_competitive_inbox (
   bot_id TEXT NOT NULL,
   update_id BIGINT NOT NULL CHECK (update_id >= 0),
