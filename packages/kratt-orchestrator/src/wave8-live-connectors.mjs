@@ -41,12 +41,15 @@ export function loadWave8Config(env=process.env){
  if(secret&&!/^[A-Za-z0-9_-]{1,256}$/.test(secret))errors.push("TELEGRAM_WEBHOOK_SECRET_FORMAT");
  if(botToken&&!/^[0-9]{5,15}:[A-Za-z0-9_-]{20,}$/.test(botToken))errors.push("TELEGRAM_BOT_TOKEN_FORMAT");
  if(botId&&!validId(botId))errors.push("TELEGRAM_BOT_ID_FORMAT");
- if(channels.length<1||channels.length>128||channels.some(x=>!/^ -?[0-9]+$/.test(x.trim())&&!/^-?[0-9]+$/.test(x)))errors.push("TELEGRAM_ALLOWED_CHANNEL_IDS_FORMAT");
+ if(channels.length<1||channels.length>128||channels.some(x=>!/^-?[0-9]{1,24}$/.test(x)))errors.push("TELEGRAM_ALLOWED_CHANNEL_IDS_FORMAT");
  if(new Set(channels).size!==channels.length)errors.push("TELEGRAM_ALLOWED_CHANNEL_IDS_DUPLICATE");
  if(!Number.isInteger(Number(env.PORT??8787))||Number(env.PORT??8787)<1||Number(env.PORT??8787)>65535)errors.push("PORT_FORMAT");
- if(!publicUrl||!/^https:\/\//.test(publicUrl)||!validHttpsHost(publicUrl,["example.invalid",...hosts])&&new URLSafe(publicUrl).hostname==="")errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
+ let webhookUrl;try{webhookUrl=new URL(publicUrl);}catch{webhookUrl=null;}
+ if(!webhookUrl||webhookUrl.protocol!=="https:"||!webhookUrl.hostname||webhookUrl.username||webhookUrl.password||webhookUrl.search||webhookUrl.hash||webhookUrl.pathname==="/")errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
  if(rateSalt.length<32||rateSalt.length>256)errors.push("TELEGRAM_RATE_LIMIT_SALT_LENGTH");
  if(hosts.length<1||hosts.some(x=>!/^([a-z0-9-]+\.)*[a-z0-9-]+\.[a-z]{2,}$/i.test(x)))errors.push("COMPETITOR_SOURCE_ALLOWLIST_FORMAT");
+ const minSources=Number(env.MIN_INDEPENDENT_SOURCES??2);
+ if(!Number.isInteger(minSources)||minSources<1||minSources>8)errors.push("MIN_INDEPENDENT_SOURCES_FORMAT");
  let database;
  try{
   database=new URL(databaseUrl);
@@ -73,7 +76,7 @@ export function loadWave8Config(env=process.env){
   openAiApiKey:openAiKey,
   openAiModel,
   sourceAllowlist:Object.freeze(hosts),
-  minIndependentSources:Number(env.MIN_INDEPENDENT_SOURCES??2),
+  minIndependentSources:minSources,
   enableWebhookWrites:env.WAVE8_ENABLE_WEBHOOK_WRITES==="true",
  });
 }
@@ -95,7 +98,7 @@ export function createTrustedSourceCapture({allowedHosts,fetchImpl=globalThis.fe
  const captured=new Map();
  async function capture(candidate){
   if(!candidate||!validId(candidate.evidence_id)||!validId(candidate.subject)||!validId(candidate.source_id)||
-   !validId(candidate.title)||!CLAIM_TYPES.includes(candidate.claim_type)||!validHttpsHost(candidate.url,allowedHosts))
+   !validId(candidate.title)||!CLAIM_TYPES.includes(candidate.claim_type)||!validHttpsHost(candidate.url,allowedHosts)||new URL(candidate.url).search||new URL(candidate.url).hash)
    throw new Error("SOURCE_CANDIDATE_REJECTED");
   const response=await fetchImpl(candidate.url,{method:"GET",redirect:"error",signal:AbortSignal.timeout(12_000),
    headers:{accept:"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.1","user-agent":"KRATT-PRIME-Wave8/1.0"}});
@@ -105,7 +108,8 @@ export function createTrustedSourceCapture({allowedHosts,fetchImpl=globalThis.fe
   const bytes=Buffer.from(await response.arrayBuffer());
   if(bytes.length===0||bytes.length>maxBytes)throw new Error("SOURCE_RESPONSE_SIZE_INVALID");
   const digest=hashBytes(bytes);
-  const observedAt=(now() instanceof Date?now():new Date(now())).toISOString();
+  const capturedAt=now();
+  const observedAt=(capturedAt instanceof Date?new Date(capturedAt.getTime()):new Date(capturedAt)).toISOString();
   const evidence=Object.freeze({
    schema_version:KRATT_SCHEMA_VERSION,evidence_id:candidate.evidence_id,subject:candidate.subject,
    claim_type:candidate.claim_type,source:Object.freeze({source_type:"official_web",source_id:candidate.source_id,revision:null}),
@@ -118,9 +122,11 @@ export function createTrustedSourceCapture({allowedHosts,fetchImpl=globalThis.fe
  function verifyEvidence(evidence){
   const item=captured.get(evidence?.evidence_id);
   if(!item||evidence.result!=="VERIFIED"||evidence.verification_method!=="https-source-content-sha256-v1")return false;
+  const verifyTime=now();
+  const current=verifyTime instanceof Date?verifyTime.getTime():new Date(verifyTime).getTime();
   return evidence.source?.source_type==="official_web"&&evidence.source.source_id===item.sourceId&&
    evidence.metadata?.url===item.url&&evidence.artifact_digest===item.digest&&
-   Date.now()-item.capturedAt<=5*60_000&&Date.now()>=item.capturedAt-30_000;
+   Number.isFinite(current)&&current-item.capturedAt<=5*60_000&&current>=item.capturedAt-30_000;
  }
  function verifyTelegramSource(){
   return false;
@@ -134,10 +140,9 @@ const nullableString={type:["string","null"]};
 const nullableScalar={type:["string","number","null"]};
 const signalSchema={
  type:"object",additionalProperties:false,
- required:["period","primary_competitor","competitor_ids","recommendation_competitor_ids","monitoring_checks",
+ required:["primary_competitor","competitor_ids","recommendation_competitor_ids","monitoring_checks",
   "source_candidates","claims","pricing_observations","ranking_snapshot"],
  properties:{
-  period:optional("object",{label:idSchema,starts_at:{type:"string"},ends_at:{type:"string"}}),
   primary_competitor:idSchema,
   competitor_ids:{type:"array",items:idSchema,maxItems:100},
   recommendation_competitor_ids:{type:"array",items:idSchema,maxItems:100},
@@ -228,7 +233,11 @@ export function createOpenAiCompetitiveSignalParser({apiKey,model,sourceCapture,
   const evidenceIds=new Set(evidence.map(item=>item.evidence_id));
   for(const claim of parsed.claims)for(const assessment of claim.assessments)
    if(!evidenceIds.has(assessment.evidence_id))throw new Error("OPENAI_ASSESSMENT_EVIDENCE_MISSING");
-  const observedAt=(now() instanceof Date?now():new Date(now())).toISOString();
+  const current=now();
+  const observedDate=current instanceof Date?new Date(current.getTime()):new Date(current);
+  if(!Number.isFinite(observedDate.getTime()))throw new Error("COMPETITIVE_PARSER_CLOCK_INVALID");
+  const observedAt=observedDate.toISOString();
+  const period={label:"last-7-days",starts_at:new Date(observedDate.getTime()-7*24*60*60_000).toISOString(),ends_at:observedAt};
   const claims=parsed.claims.map(claim=>({
    ...claim,baseline_ref:null,
    baseline_value:null,
@@ -238,7 +247,7 @@ export function createOpenAiCompetitiveSignalParser({apiKey,model,sourceCapture,
    ...parsed.ranking_snapshot,observed_at:observedAt,
   };
   return {
-   period:parsed.period,
+   period,
    primary_competitor:parsed.primary_competitor,
    competitor_ids:parsed.competitor_ids,
    recommendation_competitor_ids:parsed.recommendation_competitor_ids,
