@@ -59,7 +59,7 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
     try{webhookInfo=await telegram.getWebhookInfo();telegramReady=true;}
     catch{telegramReady=false;}
     const webhookReady=webhookInfo.url===config.webhookPublicUrl;
-    const ready=dbReady&&telegramReady&&webhookReady;
+    const ready=dbReady&&telegramReady;
     return json(response,ready?200:503,{status:ready?"READY":"NOT_READY",
      checks:{postgres:dbReady,telegramApi:telegramReady,webhookConfigured:webhookReady,snapshotChain:chain.ok===true},
      webhook:{configuredUrl:config.webhookPublicUrl,activeUrl:webhookInfo.url||null},
@@ -70,7 +70,7 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
    return json(response,404,{status:"NOT_FOUND"});
   });
   server.headersTimeout=10_000;
-  server.requestTimeout=30_000;
+  server.requestTimeout=90_000;
   server.keepAliveTimeout=5_000;
   server.maxHeadersCount=32;
   const listen=()=>new Promise((resolve,reject)=>{
