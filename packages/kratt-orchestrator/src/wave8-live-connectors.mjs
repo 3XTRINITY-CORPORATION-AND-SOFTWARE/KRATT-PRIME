@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createMotlemineEngine } from "../../kratt-core/src/motlemine-engine.mjs";
 import { createCompetitiveIntelligenceEngine } from "../../kratt-core/src/competitive-intelligence-engine.mjs";
@@ -25,6 +25,7 @@ const validHttpsHost=(url,hosts)=>{
 
 export function loadWave8Config(env=process.env){
  const errors=[];
+ if((env.APP_ENV??"staging")!=="staging")errors.push("WAVE8_STAGING_ENVIRONMENT_ONLY");
  const required=(key)=>{const value=env[key]?.trim();if(!value)errors.push(key);return value??"";};
  const secret=required("TELEGRAM_WEBHOOK_SECRET");
  const botToken=required("TELEGRAM_BOT_TOKEN");
@@ -46,7 +47,8 @@ export function loadWave8Config(env=process.env){
  if(new Set(channels).size!==channels.length)errors.push("TELEGRAM_ALLOWED_CHANNEL_IDS_DUPLICATE");
  if(!Number.isInteger(Number(env.PORT??8787))||Number(env.PORT??8787)<1||Number(env.PORT??8787)>65535)errors.push("PORT_FORMAT");
  let webhookUrl;try{webhookUrl=new URL(publicUrl);}catch{webhookUrl=null;}
- if(!webhookUrl||webhookUrl.protocol!=="https:"||!webhookUrl.hostname||webhookUrl.username||webhookUrl.password||webhookUrl.search||webhookUrl.hash||webhookUrl.pathname==="/")errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
+ if(!webhookUrl||webhookUrl.protocol!=="https:"||!webhookUrl.hostname||webhookUrl.username||webhookUrl.password||webhookUrl.search||webhookUrl.hash||webhookUrl.pathname==="/"||
+  (webhookUrl.port!==""&&!["80","88","443","8443"].includes(webhookUrl.port)))errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
  if(rateSalt.length<32||rateSalt.length>256)errors.push("TELEGRAM_RATE_LIMIT_SALT_LENGTH");
  if(!allowOpenAiProcessing)errors.push("WAVE8_OPENAI_TELEGRAM_TEXT_CONSENT_REQUIRED");
  if(hosts.length<1||hosts.some(x=>!/^([a-z0-9-]+\.)*[a-z0-9-]+\.[a-z]{2,}$/i.test(x)))errors.push("COMPETITOR_SOURCE_ALLOWLIST_FORMAT");
@@ -107,8 +109,19 @@ export function createTrustedSourceCapture({allowedHosts,fetchImpl=globalThis.fe
   if(!response.ok)throw new Error("SOURCE_FETCH_HTTP_"+response.status);
   const declared=Number(response.headers.get("content-length")??0);
   if(declared>maxBytes)throw new Error("SOURCE_RESPONSE_TOO_LARGE");
-  const bytes=Buffer.from(await response.arrayBuffer());
-  if(bytes.length===0||bytes.length>maxBytes)throw new Error("SOURCE_RESPONSE_SIZE_INVALID");
+  const chunks=[];let total=0;
+  if(!response.body||typeof response.body.getReader!=="function")throw new Error("SOURCE_RESPONSE_BODY_MISSING");
+  const reader=response.body.getReader();
+  try{
+   while(true){
+    const part=await reader.read();if(part.done)break;
+    total+=part.value.byteLength;
+    if(total>maxBytes){await reader.cancel();throw new Error("SOURCE_RESPONSE_TOO_LARGE");}
+    chunks.push(Buffer.from(part.value));
+   }
+  }finally{try{reader.releaseLock();}catch{}}
+  const bytes=Buffer.concat(chunks,total);
+  if(bytes.length===0)throw new Error("SOURCE_RESPONSE_SIZE_INVALID");
   const digest=hashBytes(bytes);
   const capturedAt=now();
   const observedAt=(capturedAt instanceof Date?new Date(capturedAt.getTime()):new Date(capturedAt)).toISOString();
@@ -271,7 +284,8 @@ export function createTelegramBotApiAdmin({token,fetchImpl=globalThis.fetch}={})
  async function setWebhook({url,secretToken,allowReplace=false}={}){
   let parsed;
   try{parsed=new URL(url);}catch{throw new TypeError("TELEGRAM_WEBHOOK_URL_INVALID");}
-  if(parsed.protocol!=="https:"||!parsed.hostname||parsed.username||parsed.password||
+  if(parsed.protocol!=="https:"||!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash||
+   (parsed.port!==""&&!["80","88","443","8443"].includes(parsed.port))||
    typeof secretToken!=="string"||!/^[A-Za-z0-9_-]{1,256}$/.test(secretToken))
    throw new TypeError("TELEGRAM_WEBHOOK_CONFIGURATION_INVALID");
   const current=await getWebhookInfo();
