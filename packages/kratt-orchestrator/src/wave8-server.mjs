@@ -4,6 +4,7 @@ import { loadWave8Config, createTelegramBotApiAdmin,
  createPostgresPoolFromConfig, createWave8Engines } from "./wave8-live-connectors.mjs";
 import { createPostgresTelegramIngressRateLimiter } from "../../kratt-core/src/postgres-telegram-ingress-rate-limiter.mjs";
 import { createPostgresCompetitiveIntelStore } from "../../kratt-core/src/postgres-competitive-snapshot-store.mjs";
+import { createPostgresRuntimeObservatoryStore } from "../../kratt-core/src/postgres-runtime-observatory-store.mjs";
 import { createTelegramCompetitiveIngestion } from "../../kratt-core/src/telegram-competitive-ingestion.mjs";
 import { createTelegramCompetitiveWebhookHandler } from "./telegram-competitive-webhook-handler.mjs";
 
@@ -21,9 +22,12 @@ async function assertSchema(pool){
   "to_regclass('public.kratt_competitor_snapshots') AS snapshots,"+
   "to_regclass('public.kratt_competitor_snapshot_events') AS events,"+
   "to_regclass('public.kratt_competitor_snapshot_head') AS head,"
-  "to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits");
+  "to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits,"+
+  "to_regclass('public.kratt_runtime_operation_events') AS runtime_events,"+
+  "to_regclass('public.kratt_runtime_operations') AS runtime_operations,"+
+  "to_regclass('public.kratt_runtime_observatory_head') AS runtime_head");
  const row=result.rows?.[0]??{};
- const missing=["inbox","snapshots","events","head","rate_limits"].filter(key=>!row[key]);
+ const missing=["inbox","snapshots","events","head","rate_limits","runtime_events","runtime_operations","runtime_head"].filter(key=>!row[key]);
  if(missing.length)throw new Error("WAVE8_DATABASE_SCHEMA_MISSING:"+missing.join(","));
 }
 
@@ -35,6 +39,8 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
   await pool.query("SELECT 1 AS connected");
   await assertSchema(pool);
   const store=createPostgresCompetitiveIntelStore(pool);
+  const observatoryStore=createPostgresRuntimeObservatoryStore(pool);
+  if(!(await observatoryStore.checkReady()).ready)throw new Error("WAVE10_OBSERVATORY_NOT_READY");
   const engines=await createWave8Engines({config,fetchImpl});
   const ingestion=createTelegramCompetitiveIngestion({
    webhookSecret:config.telegramWebhookSecret,botId:config.telegramBotId,
@@ -62,11 +68,14 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
     catch{dbReady=false;}
     try{webhookInfo=await telegram.getWebhookInfo();telegramReady=true;}
     catch{telegramReady=false;}
+    let observatoryReady=false;
+    try{observatoryReady=(await observatoryStore.checkReady()).ready===true;}catch{observatoryReady=false;}
     const webhookReady=webhookInfo.url===config.webhookPublicUrl;
-    const ready=dbReady&&telegramReady;
+    const ready=dbReady&&telegramReady&&observatoryReady;
     return json(response,ready?200:503,{status:ready?"READY":"NOT_READY",
      service:"kratt-prime-staging",
-     checks:{postgres:dbReady,telegramApi:telegramReady,webhookConfigured:webhookReady,snapshotChain:chain.ok===true}});
+     checks:{postgres:dbReady,telegramApi:telegramReady,webhookConfigured:webhookReady,
+      snapshotChain:chain.ok===true,runtimeObservatory:observatoryReady}});
    }
    if(request.method==="POST"&&url.pathname===config.webhookPath)
     return handler(request,response);
@@ -88,7 +97,7 @@ export async function createWave8StagingServer({env=process.env,PoolClass,fetchI
    await pool.end();
    log("wave8.server_stopped");
   };
-  return Object.freeze({server,pool,store,telegram,config,close});
+  return Object.freeze({server,pool,store,observatoryStore,telegram,config,close});
  }catch(error){
   try{await pool.end();}catch{}
   throw error;
