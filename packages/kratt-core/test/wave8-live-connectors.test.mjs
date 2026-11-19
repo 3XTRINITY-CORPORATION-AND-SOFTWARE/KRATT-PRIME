@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ReadableStream } from "node:stream/web";
 import {
  loadWave8Config,createTelegramSourceVerifier,createTrustedSourceCapture,
  createOpenAiCompetitiveSignalParser,createTelegramBotApiAdmin,createInMemoryTelegramRateLimiter,
@@ -23,8 +24,10 @@ function env(overrides={}){
  };
 }
 function response(payload,{ok=true,status=200,headers={}}={}){
+ const data=Buffer.from(typeof payload==="string"?payload:JSON.stringify(payload));
  return {ok,status,headers:{get:key=>headers[key.toLowerCase()]??null},json:async()=>payload,
-  arrayBuffer:async()=>Buffer.from(typeof payload==="string"?payload:JSON.stringify(payload))};
+  body:new ReadableStream({start(controller){controller.enqueue(data);controller.close();}}),
+  arrayBuffer:async()=>data};
 }
 
 test("Wave 8 config requires HTTPS, DB TLS-compatible URL and explicit model-processing consent",()=>{
