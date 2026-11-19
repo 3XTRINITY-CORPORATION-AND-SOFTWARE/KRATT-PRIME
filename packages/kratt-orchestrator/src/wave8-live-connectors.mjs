@@ -338,9 +338,6 @@ export async function createWave8Engines({config,fetchImpl=globalThis.fetch}={})
  const motlemineEngine=createMotlemineEngine({
   verifyEvidence:sourceCapture.verifyEvidence,minIndependentSources:config.minIndependentSources,
  });
- const competitiveEngine=createCompetitiveIntelligenceEngine({
-  motlemineEngine,verifyTelegramSource:createTelegramSourceVerifier(config.telegramAllowedChannelIds),
- });
  const rawEngine=createCompetitiveIntelligenceEngine({
   motlemineEngine,verifyTelegramSource:createTelegramSourceVerifier(config.telegramAllowedChannelIds),
  });
@@ -357,8 +354,3 @@ export async function createWave8Engines({config,fetchImpl=globalThis.fetch}={})
  return Object.freeze({sourceCapture,motlemineEngine,competitiveEngine,parseSignal});
 }
 
-export function constantTimeConfigSecretMatch(a,b){
- if(typeof a!=="string"||typeof b!=="string")return false;
- const x=Buffer.from(a),y=Buffer.from(b);
- return x.length===y.length&&timingSafeEqual(x,y);
-}
