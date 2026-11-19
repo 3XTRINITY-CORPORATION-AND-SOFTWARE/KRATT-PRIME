@@ -11,8 +11,8 @@ try{
   "SELECT to_regclass('public.kratt_telegram_competitive_inbox') AS inbox,"+
   "to_regclass('public.kratt_competitor_snapshots') AS snapshots,"+
   "to_regclass('public.kratt_competitor_snapshot_events') AS events,"+
-  "to_regclass('public.kratt_competitor_snapshot_head') AS head,"
-  +"to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits,"+
+  "to_regclass('public.kratt_competitor_snapshot_head') AS head,"+
+  "to_regclass('public.kratt_telegram_ingress_rate_limits') AS rate_limits,"+
   "to_regclass('public.kratt_runtime_operation_events') AS runtime_events,"+
   "to_regclass('public.kratt_runtime_operations') AS runtime_operations,"+
   "to_regclass('public.kratt_runtime_observatory_head') AS runtime_head");

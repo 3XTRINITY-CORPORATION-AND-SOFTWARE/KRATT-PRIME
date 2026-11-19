@@ -9,7 +9,7 @@ const t0="2026-11-19T10:00:00.000Z";
 const t1="2026-11-19T10:00:02.000Z";
 const t2="2026-11-19T10:00:05.000Z";
 function event(status,overrides={}){
- const started=status==="running"?t1:status==="succeeded"?t1:null;
+ const started=["running","succeeded","failed","cancelled","timed_out"].includes(status)?t1:null;
  const finished=["succeeded","failed","cancelled","timed_out","not_run"].includes(status)?(status==="not_run"?t0:t2):null;
  return{
   schema_version:"kratt-runtime-operation/v1",
@@ -18,7 +18,7 @@ function event(status,overrides={}){
   adapter_id:"postgres-store",capability:"runtime-observatory",capability_state:"bound",
   status,occurred_at:status==="queued"?t0:status==="not_run"?t0:status==="running"?t1:t2,
   started_at:started,finished_at:finished,
-  duration_ms:status==="succeeded"?3000:null,
+  duration_ms:["succeeded","failed","cancelled","timed_out"].includes(status)?3000:null,
   input_ref:"input:sha256:aaaaaaaa",output_ref:status==="succeeded"?"artifact:sha256:bbbbbbbb":null,
   evidence_refs:[],environment:"test",runtime_version:"node22.0.0",
   ...overrides,
