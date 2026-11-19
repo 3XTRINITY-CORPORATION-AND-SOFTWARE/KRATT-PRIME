@@ -36,7 +36,7 @@ export function createObservedOperationRunner({
   async function append(event){
    try{
     const result=await store.append(event);
-    return !!result?.ok&&!result.duplicate;
+    return result?.ok===true;
    }catch{return false;}
   }
   let queuedAt;

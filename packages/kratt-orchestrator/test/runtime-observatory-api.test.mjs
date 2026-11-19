@@ -6,7 +6,7 @@ function fakeStore(){
  return{
   async listOperations(options){return[{operation_id:"operation-01",status:"running",...options}];},
   async getOperation(id){return id==="operation-01"?{operation_id:id,status:"succeeded"}:null;},
-  async listEvents(id){return[{event_id:"event-1",operation_id:id,status:"queued"}];},
+  async listEvents(id){return[{sequence:1,event_id:"event-1",operation_id:id,event:{status:"queued"},previous_hash:"internal-prev",hash:"internal-hash"}];},
   async summarizeModules(){return[{module_id:"kratt-core",total:1}];},
   async verifyChain(){return{ok:true,count:2,operations:1,head_hash:"secret-hash"};},
  };
@@ -24,7 +24,9 @@ test("observatory API returns operation timeline only after scope authorization"
  }});
  const result=await api.handle({path:"/observatory/operations/operation-01/events",principal:{id:"operator-1"}});
  assert.equal(result.statusCode,200);
- assert.equal(result.body.data[0].status,"queued");
+ assert.equal(result.body.data[0].event.status,"queued");
+ assert.equal(Object.hasOwn(result.body.data[0],"hash"),false);
+ assert.equal(Object.hasOwn(result.body.data[0],"previous_hash"),false);
  assert.equal(calls[0].operation_id,"operation-01");
 });
 test("observatory API supports module summaries and integrity without returning the internal hash",async()=>{
@@ -39,4 +41,22 @@ test("observatory API rejects writes and unknown resources",async()=>{
  const api=createRuntimeObservatoryApi({store:fakeStore(),authorizeRead:async()=>true});
  assert.equal((await api.handle({method:"POST",path:"/observatory/operations"})).statusCode,405);
  assert.equal((await api.handle({path:"/observatory/secrets"})).statusCode,404);
+});
+
+test("observatory API rejects malformed, excessive and unknown list query parameters with 400",async()=>{
+ const api=createRuntimeObservatoryApi({store:fakeStore(),authorizeRead:async()=>true});
+ for(const query of [{limit:"1e3"},{limit:201},{limit:0},{module_id:"../secret"},{status:"UNKNOWN"},{unexpected:"value"}]){
+  const result=await api.handle({path:"/observatory/operations",query});
+  assert.equal(result.statusCode,400);
+  assert.equal(result.body.reason,"QUERY_INVALID");
+ }
+});
+test("observatory API does not invoke storage when list filters are invalid",async()=>{
+ let calls=0;
+ const store=fakeStore();
+ store.listOperations=async()=>{calls++;return[];};
+ const api=createRuntimeObservatoryApi({store,authorizeRead:async()=>true});
+ const result=await api.handle({path:"/observatory/operations",query:{limit:"NaN"}});
+ assert.equal(result.statusCode,400);
+ assert.equal(calls,0);
 });
