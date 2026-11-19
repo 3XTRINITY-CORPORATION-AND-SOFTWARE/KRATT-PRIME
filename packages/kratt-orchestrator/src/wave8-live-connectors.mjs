@@ -34,6 +34,7 @@ export function loadWave8Config(env=process.env){
  const openAiModel=required("OPENAI_MODEL");
  const publicUrl=required("WEBHOOK_PUBLIC_URL");
  const rateSalt=required("TELEGRAM_RATE_LIMIT_SALT");
+ const allowOpenAiProcessing=env.WAVE8_ALLOW_TELEGRAM_TEXT_TO_OPENAI==="true";
  const channelRaw=required("TELEGRAM_ALLOWED_CHANNEL_IDS");
  const hostsRaw=required("COMPETITOR_SOURCE_ALLOWLIST");
  const channels=channelRaw.split(",").map(x=>x.trim()).filter(Boolean);
@@ -47,6 +48,7 @@ export function loadWave8Config(env=process.env){
  let webhookUrl;try{webhookUrl=new URL(publicUrl);}catch{webhookUrl=null;}
  if(!webhookUrl||webhookUrl.protocol!=="https:"||!webhookUrl.hostname||webhookUrl.username||webhookUrl.password||webhookUrl.search||webhookUrl.hash||webhookUrl.pathname==="/")errors.push("WEBHOOK_PUBLIC_URL_HTTPS_REQUIRED");
  if(rateSalt.length<32||rateSalt.length>256)errors.push("TELEGRAM_RATE_LIMIT_SALT_LENGTH");
+ if(!allowOpenAiProcessing)errors.push("WAVE8_OPENAI_TELEGRAM_TEXT_CONSENT_REQUIRED");
  if(hosts.length<1||hosts.some(x=>!/^([a-z0-9-]+\.)*[a-z0-9-]+\.[a-z]{2,}$/i.test(x)))errors.push("COMPETITOR_SOURCE_ALLOWLIST_FORMAT");
  const minSources=Number(env.MIN_INDEPENDENT_SOURCES??2);
  if(!Number.isInteger(minSources)||minSources<1||minSources>8)errors.push("MIN_INDEPENDENT_SOURCES_FORMAT");
@@ -78,9 +80,9 @@ export function loadWave8Config(env=process.env){
   sourceAllowlist:Object.freeze(hosts),
   minIndependentSources:minSources,
   enableWebhookWrites:env.WAVE8_ENABLE_WEBHOOK_WRITES==="true",
+  allowOpenAiProcessing,
  });
 }
-function URLSafe(value){try{return new URL(value);}catch{return {hostname:""};}}
 
 export function createTelegramSourceVerifier(allowedChannelIds){
  const allowed=new Set(allowedChannelIds.map(id=>"telegram-channel-"+String(id).replace(/-/g,"n")));
@@ -128,10 +130,7 @@ export function createTrustedSourceCapture({allowedHosts,fetchImpl=globalThis.fe
    evidence.metadata?.url===item.url&&evidence.artifact_digest===item.digest&&
    Number.isFinite(current)&&current-item.capturedAt<=5*60_000&&current>=item.capturedAt-30_000;
  }
- function verifyTelegramSource(){
-  return false;
- }
- return Object.freeze({capture,verifyEvidence,verifyTelegramSource,clear(){captured.clear();}});
+ return Object.freeze({capture,verifyEvidence,clear(){captured.clear();}});
 }
 
 const optional=(type,properties)=>({type,properties,required:Object.keys(properties),additionalProperties:false});
@@ -202,13 +201,8 @@ export function createOpenAiCompetitiveSignalParser({apiKey,model,sourceCapture,
    "Ranking requires a named universe and source. If absent use null. Set monitoring_checks only for categories that the message actually addresses.",
    "Return only data matching the JSON schema."
   ].join(" ");
-  const input={
-   update_id:updateId,received_at:receivedAt,telegram_source:{
-    channel_id:source.source.channel_id,message_id:source.source.message_id,
-    source_id:source.source.source_id,observed_at:source.source.observed_at,permalink:source.source.permalink,
-   },
-   telegram_text:text,
-  };
+  // Privacy minimization: only the post text is sent to the model endpoint; no Telegram IDs or chat metadata.
+  const input={telegram_text:text};
   const response=await fetchImpl("https://api.openai.com/v1/responses",{
    method:"POST",signal:AbortSignal.timeout(45_000),
    headers:{"authorization":"Bearer "+apiKey,"content-type":"application/json"},
