@@ -75,7 +75,7 @@ export function loadWave8Config(env=process.env){
   telegramBotId:botId,
   telegramAllowedChannelIds:Object.freeze(channels),
   telegramRateLimitSalt:rateSalt,
-  databaseUrl,
+  databaseUrl:database,
   databaseCaCertPath:env.DATABASE_CA_CERT_PATH?.trim()||null,
   openAiApiKey:openAiKey,
   openAiModel,
