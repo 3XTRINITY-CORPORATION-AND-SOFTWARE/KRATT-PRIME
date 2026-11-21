@@ -204,11 +204,17 @@ const records = [
       "feature/phase10-runtime-observatory-v1",
       "feature/wave10-observatory-hardening-remediation-v1",
       "feature/wave10-observatory-hardening-v1",
+      "feature/wave1-10-progression-alignment-2026-11-20",
+      "feature/wave1-10-observatory-http-integration-2026-11-20",
+      "feature/wave1-10-trusted-evidence-gates-2026-11-20",
     ],
     pullRequests: [
-      { number: 36, state: "open", relation: "observatory-core-draft" },
-      { number: 38, state: "open", relation: "observatory-ingestion-hardening-draft" },
-      { number: 39, state: "open", relation: "parallel-observatory-hardening-draft" },
+      { number: 36, state: "open", draft: true, merged: false, relation: "observatory-core-draft" },
+      { number: 38, state: "open", draft: false, merged: false, relation: "observatory-hardening-open-unmerged" },
+      { number: 39, state: "closed", draft: false, merged: true, relation: "merged-into-phase10-candidate" },
+      { number: 40, state: "closed", draft: false, merged: true, relation: "merged-into-wave10-hardening-branch" },
+      { number: 41, state: "open", draft: true, merged: false, relation: "observatory-http-steel-hardening-draft" },
+      { number: 42, state: "open", draft: true, merged: false, relation: "trusted-wave-evidence-gate-draft" },
     ],
     requiredEvidence: [
       "observatory-integrity-tests",
@@ -217,7 +223,7 @@ const records = [
       "ui-read-contract-tests",
       "operator-staging-attestation",
     ],
-    lineageNote: "PRs #38 and #39 both stack on PR #36, not on each other. Reconcile their overlapping changes before selecting one canonical hardening head. WP-10 scale/semantic retrieval PR #37 is adjacent work on a separate worker-lease base.",
+    lineageNote: "PR #39 is merged into the Phase 10 candidate; PR #40 is merged into the Wave 10 hardening branch. PR #38 remains open. PRs #41 and #42 are open draft continuations on related integration branches and must be reconciled before one canonical promotion. WP-10 PR #37 remains adjacent work on a separate worker-lease base.",
   },
 ];
 
@@ -282,7 +288,10 @@ export function validateWaveRegistry(registry = WAVE_REGISTRY) {
       }
     }
     for (const pr of wave.pullRequests) {
-      if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !["open", "closed"].includes(pr.state)) {
+      if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !["open", "closed"].includes(pr.state) ||
+          pr.draft !== undefined && typeof pr.draft !== "boolean" ||
+          pr.merged !== undefined && typeof pr.merged !== "boolean" ||
+          pr.merged === true && pr.state !== "closed") {
         errors.push("WAVE_PULL_REQUEST_REF_INVALID:" + wave.id);
       }
     }
