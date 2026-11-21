@@ -56,6 +56,10 @@ export function createRuntimeObservatoryApi({store,authorizeRead}={}){
     const events=await store.listEvents(operationId);
     const data=events.map(item=>({sequence:item.sequence,event_id:item.event_id,event:item.event}));
     return{statusCode:200,body:{status:"OK",data}};
+    const limit=query?.limit===undefined?100:Number(query.limit);
+    const beforeSequence=query?.before_sequence===undefined?undefined:Number(query.before_sequence);
+    const data=await store.listEvents(operationId,{limit,beforeSequence});
+    return{statusCode:200,body:{status:"OK",data,next_before_sequence:data.length===limit?data[0].sequence:null}};
    }
    if(action==="summary")return{statusCode:200,body:{status:"OK",data:await store.summarizeModules()}};
    const integrity=await store.verifyChain();

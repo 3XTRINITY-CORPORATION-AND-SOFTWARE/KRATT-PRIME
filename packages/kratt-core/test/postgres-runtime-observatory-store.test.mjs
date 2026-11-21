@@ -136,3 +136,4 @@ test("integrity verification detects projection tampering beyond the status poin
  assert.equal(result.ok,false);
  assert.equal(result.reason,"PROJECTION_MISMATCH");
 });
+test("listEvents applies a descending sequence cursor",async()=>{const pool=new FakePool(),store=createPostgresRuntimeObservatoryStore(pool);await store.append(event("queued"));await store.append(event("running"));const rows=await store.listEvents("operation-01",{limit:1,beforeSequence:2});assert.equal(rows.length,1);assert.equal(rows[0].event.status,"queued");});

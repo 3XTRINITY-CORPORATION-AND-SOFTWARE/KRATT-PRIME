@@ -60,3 +60,4 @@ test("observatory API does not invoke storage when list filters are invalid",asy
  assert.equal(result.statusCode,400);
  assert.equal(calls,0);
 });
+test("operation event API passes a bounded sequence cursor",async()=>{const store=fakeStore();let captured;store.listEvents=async(_id,options)=>{captured=options;return[{sequence:8,status:"queued"}];};const api=createRuntimeObservatoryApi({store,authorizeRead:async()=>true});const result=await api.handle({path:"/observatory/operations/operation-01/events",query:{limit:"5",before_sequence:"12"}});assert.equal(captured.beforeSequence,12);assert.equal(captured.limit,5);assert.equal(result.body.next_before_sequence,8);});
