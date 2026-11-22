@@ -39,7 +39,6 @@ class FakePool{
     runtime_head:"kratt_runtime_observatory_head"}],rowCount:1};
   if(sql.startsWith("SELECT sequence,hash FROM kratt_runtime_observatory_head"))
    return{rows:[{...this.observatoryHead}],rowCount:1};
-    rate_limits:"kratt_telegram_ingress_rate_limits"}],rowCount:1};
   if(sql.startsWith("INSERT INTO kratt_telegram_ingress_rate_limits")){
    this.rateLimitCalls.push(sql);
    return{rows:[{request_count:1}],rowCount:1};
