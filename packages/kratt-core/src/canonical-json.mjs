@@ -26,8 +26,11 @@ export function canonicalJson(value) {
     try {
       if (Array.isArray(input)) {
         const keys = Reflect.ownKeys(input);
-        if (keys.length !== input.length + 1 || !keys.includes("length")) {
-          throw new TypeError("CANONICAL_JSON_ARRAY_PROPERTIES_INVALID");
+        for (const key of keys) {
+          if (key === "length") continue;
+          if (typeof key !== "string" || !/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= input.length) {
+            throw new TypeError("CANONICAL_JSON_ARRAY_PROPERTIES_INVALID");
+          }
         }
         const parts = [];
         for (let index = 0; index < input.length; index += 1) {
