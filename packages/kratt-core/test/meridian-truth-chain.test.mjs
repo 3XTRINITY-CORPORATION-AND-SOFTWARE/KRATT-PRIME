@@ -32,11 +32,11 @@ function makeRecord({ includeSense = true, sourceRefs = ["evidence-source"] } = 
   return structuredClone(result.value);
 }
 
-function evidence(id, sourceId) {
+function evidence(id, sourceId, recordId) {
   return {
     schema_version: KRATT_SCHEMA_VERSION,
     evidence_id: id,
-    subject: record.record_id,
+    subject: recordId,
     claim_type: "TESTS_PASSED",
     source: { source_type: "github", source_id: sourceId, revision: null },
     observed_at: at,
@@ -48,7 +48,7 @@ function evidence(id, sourceId) {
 }
 
 function reflection(record, { conflict = false } = {}) {
-  const items = [evidence("evidence-1", "independent-source-1"), evidence("evidence-2", "independent-source-2")];
+  const items = [evidence("evidence-1", "independent-source-1", record.record_id), evidence("evidence-2", "independent-source-2", record.record_id)];
   return {
     analysis_id: conflict ? "meridian-conflict-01" : "meridian-support-01",
     record_id: record.record_id,
