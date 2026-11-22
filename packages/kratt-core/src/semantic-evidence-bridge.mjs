@@ -1,7 +1,7 @@
 import { validateEvidenceRecord } from "./contracts.mjs";
 import { MemoryLedger } from "./memory-ledger.mjs";
 import { evaluateWordSemantics, validateWordSemanticRecord } from "./word-semantic-model.mjs";
-import { canonicalDigest, sha256Hex } from "./canonical-json.mjs";
+import { canonicalJson, canonicalDigest, sha256Hex } from "./canonical-json.mjs";
 
 export const SEMANTIC_EVIDENCE_BRIDGE_VERSION = "1.0.0";
 export const SEMANTIC_MEMORY_KIND = "WORD_SEMANTIC_RECORD";
