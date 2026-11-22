@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/phase11-phase-upgrade-engine-v1
+      - feature/phase11-wave10-reconciled-2026-11-23
     paths:
       - "packages/kratt-core/src/hardware-capabilities.mjs"
       - "packages/kratt-core/src/phase-upgrade-engine.mjs"
@@ -17,6 +18,7 @@ on:
       - "packages/kratt-core/test/phase11-wave10-integration.test.mjs"
       - "packages/kratt-core/test/phase11-migration-contract.test.mjs"
       - "scripts/wave8-apply-migration.mjs"
+      - "package.json"
       - ".github/workflows/phase11-phase-upgrade-engine.yml"
   pull_request:
     branches:
@@ -30,11 +32,11 @@ on:
       - "packages/kratt-core/src/phase11-migration-contract.mjs"
       - "packages/kratt-orchestrator/src/phase11-runtime.mjs"
       - "packages/kratt-orchestrator/test/phase11-runtime.test.mjs"
-      - "package.json"
       - "packages/kratt-core/test/phase-upgrade-engine.test.mjs"
       - "packages/kratt-core/test/phase11-wave10-integration.test.mjs"
       - "packages/kratt-core/test/phase11-migration-contract.test.mjs"
       - "scripts/wave8-apply-migration.mjs"
+      - "package.json"
       - ".github/workflows/phase11-phase-upgrade-engine.yml"
 
 permissions:
@@ -42,6 +44,7 @@ permissions:
 
 jobs:
   phase-upgrade-engine:
+    name: Phase 11 focused contract checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,9 +61,23 @@ jobs:
           node --check packages/kratt-core/src/phase11-migration-contract.mjs
           node --check packages/kratt-orchestrator/src/phase11-runtime.mjs
           node --check scripts/wave8-apply-migration.mjs
-      - name: Run Phase 11, Wave 10 integration and migration contracts
+      - name: Run Phase 11 integration and migration contracts
         run: |
           node --test packages/kratt-core/test/phase-upgrade-engine.test.mjs
           node --test packages/kratt-core/test/phase11-wave10-integration.test.mjs
           node --test packages/kratt-core/test/phase11-migration-contract.test.mjs
           node --test packages/kratt-orchestrator/test/phase11-runtime.test.mjs
+
+  full-kratt-verification:
+    name: Full KRATT tests, typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full repository verification
+        run: npm run phase11:verify
