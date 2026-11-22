@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/phase11-phase-upgrade-engine-v1
+      - feature/phase11-wave10-reconciled-2026-11-23
     paths:
       - "packages/kratt-core/src/word-semantic-model.mjs"
       - "packages/kratt-core/src/canonical-json.mjs"
@@ -16,18 +17,15 @@ on:
       - "packages/kratt-orchestrator/test/semantic-agent-pipeline.test.mjs"
       - "packages/kratt-core/test/postgres-semantic-memory-store.test.mjs"
       - "packages/kratt-core/test/semantic-policy-authorizer.test.mjs"
-      - "packages/kratt-orchestrator/test/semantic-agent-pipeline.test.mjs"
-      - "packages/kratt-core/migrations/0005_semantic_memory.sql"
-      - "scripts/wave8-apply-migration.mjs"
       - "packages/kratt-core/test/semantic-ingestion-runtime.test.mjs"
       - "packages/kratt-core/test/async-trusted-runtime.test.mjs"
-      - "packages/kratt-core/src/memory-ledger.mjs"
       - "packages/kratt-core/src/contracts.mjs"
       - "packages/kratt-core/test/word-semantic-evidence-bridge.test.mjs"
       - "packages/kratt-core/test/word-semantic-model.test.mjs"
       - "packages/kratt-core/test/canonical-json.test.mjs"
       - "packages/kratt-core/test/meridian-truth-chain.test.mjs"
-      - "docs/WORD-SEMANTIC-MODEL.md"
+      - "packages/kratt-core/migrations/0005_semantic_memory.sql"
+      - "scripts/wave8-apply-migration.mjs"
       - ".github/workflows/word-semantic-model.yml"
   pull_request:
     branches:
@@ -45,7 +43,6 @@ on:
       - "packages/kratt-core/src/semantic-evidence-bridge.mjs"
       - "packages/kratt-core/src/semantic-ingestion-runtime.mjs"
       - "packages/kratt-core/test/semantic-ingestion-runtime.test.mjs"
-      - "packages/kratt-core/src/memory-ledger.mjs"
       - "packages/kratt-core/src/contracts.mjs"
       - "packages/kratt-core/test/word-semantic-evidence-bridge.test.mjs"
       - "packages/kratt-core/test/word-semantic-model.test.mjs"
@@ -57,6 +54,7 @@ permissions:
 
 jobs:
   word-semantics:
+    name: Word semantics contract suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
