@@ -329,13 +329,24 @@ test("effect measurement evidence remains distinct from effect claim evidence", 
     magnitude: 1,
     evidence_refs: ["evidence-source"],
     measurement_refs: ["evidence-measurement"],
-    causal_status: "CAUSALLY_ESTABLISHED"
+    causal_status: "OBSERVED"
   });
-  const measurement = evidence(
-    "evidence-measurement",
-    "measurement-run",
-    "sha256:" + "c".repeat(64)
-  );
+  const measurement = {
+    ...evidence(
+      "evidence-measurement",
+      "measurement-run",
+      "sha256:" + "c".repeat(64)
+    ),
+    claim_type: "MEASUREMENT_RECORDED",
+    metadata: {
+      effect_id: "effect-measured",
+      target_ref: "system:kratt",
+      metric_name: "runtime_latency",
+      metric_value: 42,
+      metric_unit: "ms",
+      measurement_method: "monotonic-clock"
+    }
+  };
   const result = await bridge.ingest({
     record,
     evidence: [evidence("evidence-source"), measurement]
