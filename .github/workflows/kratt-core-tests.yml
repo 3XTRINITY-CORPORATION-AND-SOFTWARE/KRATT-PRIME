@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - feature/phase10-runtime-observatory-v1
+      - feature/chiro-x-pattern-intelligence-v1
 
 permissions:
   contents: read
