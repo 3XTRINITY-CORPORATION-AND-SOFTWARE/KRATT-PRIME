@@ -1,0 +1,37 @@
+name: KRATT Kernel-first Evidence Runtime
+
+on:
+  push:
+    branches: [feature/kernel-first-evidence-runtime-v1]
+    paths:
+      - "packages/kratt-runtime/**"
+      - "packages/kratt-core/src/evidence-ledger.mjs"
+      - "package.json"
+      - "scripts/lint-runtime.mjs"
+      - ".github/workflows/kernel-first-evidence-runtime.yml"
+  pull_request:
+    branches: [feature/node-runtime-supervisor-2026-11-08]
+    paths:
+      - "packages/kratt-runtime/**"
+      - "packages/kratt-core/src/evidence-ledger.mjs"
+      - "package.json"
+      - "scripts/lint-runtime.mjs"
+      - ".github/workflows/kernel-first-evidence-runtime.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

@@ -1,0 +1,35 @@
+name: Telegram Program CI
+
+on:
+  push:
+    branches:
+      - telegram-main
+      - feature/telegram-policy-adapter-2026-11-04
+    paths:
+      - "programs/telegram/**"
+      - "packages/kratt-core/**"
+      - ".github/workflows/telegram-ci.yml"
+  pull_request:
+    branches: [telegram-main]
+    paths:
+      - "programs/telegram/**"
+      - "packages/kratt-core/**"
+      - ".github/workflows/telegram-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  telegram-tests:
+    name: Telegram contracts and security tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run KRATT core and Telegram contract tests
+        run: |
+          node --test packages/kratt-core/test/*.test.mjs
+          node --test programs/telegram/test/*.test.mjs
