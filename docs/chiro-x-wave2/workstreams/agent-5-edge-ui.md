@@ -1,7 +1,7 @@
 # Workstream 5 — KRATT Control Desk integration
 
 - Assigned branch: wave2/agent-5-edge-ui.
-- Starting SHA: fill with the actual frozen-contract integration SHA before implementation.
+- Branch starting SHA: 8bb81626b0b273761a2fa55b0d253b76e078eb9f (includes the shared frozen-contract commit 1e9df9a728bed86bf9a578f301bcd51635ea2a78).
 - Owned paths: programs/web/kratt-control-desk/index.html; app.js; styles.css; README.md; packages/kratt-core/test/chiro-control-desk-contract.test.mjs; docs/chiro-x-wave2/ui/**; this manifest.
 - Read-only paths: frozen contracts, runtime/evidence APIs, existing Observatory routes, AURA root application, and all other workstream-owned paths.
 - Forbidden paths: root AURA src/**, nested AURA app, STEEL/GOLIATH code, shared contracts, package manifests/lockfiles, workflows, migrations, main, base, integration branch, and other agent branches.
