@@ -1,0 +1,35 @@
+name: KRATT Durable Evidence Projection
+
+on:
+  push:
+    branches: [feature/durable-evidence-projection-v1]
+    paths:
+      - "packages/kratt-runtime/src/durable-evidence.mjs"
+      - "packages/kratt-runtime/test/durable-evidence.test.mjs"
+      - "packages/kratt-core/src/prime-store.mjs"
+      - ".github/workflows/durable-evidence-projection.yml"
+  pull_request:
+    branches: [feature/kernel-first-evidence-runtime-v1]
+    paths:
+      - "packages/kratt-runtime/src/durable-evidence.mjs"
+      - "packages/kratt-runtime/test/durable-evidence.test.mjs"
+      - "packages/kratt-core/src/prime-store.mjs"
+      - ".github/workflows/durable-evidence-projection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  durable-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
