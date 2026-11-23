@@ -1,0 +1,36 @@
+name: KRATT Hardware Runtime contract tests
+
+on:
+  push:
+    branches:
+      - feature/hardware-aware-runtime-v0.2.0-2026-11-07
+    paths:
+      - "packages/kratt-core/src/hardware-capabilities.mjs"
+      - "packages/kratt-core/test/hardware-capabilities.test.mjs"
+      - ".github/workflows/hardware-runtime-tests.yml"
+  pull_request:
+    branches:
+      - main
+      - work/kratt-prime-roadmap-v3-2026-11-06
+    paths:
+      - "packages/kratt-core/src/hardware-capabilities.mjs"
+      - "packages/kratt-core/test/hardware-capabilities.test.mjs"
+      - ".github/workflows/hardware-runtime-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-runtime-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Hardware Runtime contract tests
+        run: node --test packages/kratt-core/test/hardware-capabilities.test.mjs
+      - name: Run complete KRATT Core contract suite
+        run: node --test packages/kratt-core/test/*.test.mjs
+      - name: Syntax-check Hardware Runtime module
+        run: node --check packages/kratt-core/src/hardware-capabilities.mjs
