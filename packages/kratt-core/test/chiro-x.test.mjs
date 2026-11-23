@@ -258,3 +258,43 @@ test("Chiro workflow uses the existing Saga state machine and preserves transiti
   assert.equal(invalid.ok, false);
   assert.equal(invalid.reason, "INVALID_STATE_TRANSITION");
 });
+
+
+test("malformed null source references are rejected without throwing", () => {
+  const result = validatePIPBundle(bundle({
+    interpretations: [sourceClaim({ source_refs: null })]
+  }));
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes("PIP_SOURCE_REFERENCES_INVALID"));
+});
+
+test("a session with no interpretations cannot be reported as supported", () => {
+  const result = evaluateChiroBundle(bundle({ interpretations: [] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "NO_INTERPRETATIONS");
+  assert.equal(result.requires_human_review, true);
+});
+
+test("invalid digest types are rejected", () => {
+  const result = validatePIPObservation({
+    ...observation(),
+    provenance: { ...observation().provenance, content_digest: { value: "fake" } }
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes("PIP_OBSERVATION_PROVENANCE_INVALID"));
+});
+
+test("event helper pins the protocol version instead of accepting a caller override", () => {
+  const result = createChiroEvent({
+    schema_version: "attacker/version",
+    event_id: "event-3",
+    event_type: "chiro.session.created",
+    occurred_at: at,
+    correlation_id: "corr-3",
+    session_id: "session-1",
+    actor: { type: "SYSTEM", id: "kratt-runtime" },
+    payload: {}
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.schema_version, PIP_SCHEMA_VERSION);
+});
