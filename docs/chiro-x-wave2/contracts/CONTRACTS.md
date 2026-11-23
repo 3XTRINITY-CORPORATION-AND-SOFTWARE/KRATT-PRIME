@@ -1,7 +1,7 @@
 # CHIRO-X Wave 2 contracts
 
-Contract package: `packages/kratt-core/src/wave2-contracts.mjs`  
-Current version: `1.0.0`  
+- Contract package: `packages/kratt-core/src/wave2-contracts.mjs`
+- Current version: `1.0.0`
 Status: frozen for dependent workstreams when this file's commit is integrated.
 
 The module exports dependency-free runtime validators. Data validators return `{ ok: true, value }` with a cloned, deeply frozen value, or `{ ok: false, errors }` with stable error codes. They reject unknown fields, accessors, non-finite numbers, non-plain objects, oversized collections, and values outside documented bounds. The provider adapter is an in-process interface with an executable function, so it is shallow-frozen and its capability records are cloned and deeply frozen.
