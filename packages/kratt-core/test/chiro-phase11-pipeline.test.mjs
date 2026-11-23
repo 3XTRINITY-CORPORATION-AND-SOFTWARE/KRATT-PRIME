@@ -135,3 +135,47 @@ test("Phase 11 pipeline fails closed when provider output violates the PIP contr
   assert.equal(result.ok, false);
   assert.equal(result.reason, "CHIRO_PIP_VALIDATION_FAILED");
 });
+
+
+test("vision observations are validated and frozen before the interpreter receives them", async () => {
+  let receivedFrozenObservation = false;
+  const pipeline = createChiroPhase11Pipeline({
+    visionProvider: { async extractObservations() { return [observation]; } },
+    interpretationProvider: {
+      async proposeInterpretations(input) {
+        receivedFrozenObservation = Object.isFrozen(input.observations[0]);
+        assert.equal(Object.isFrozen(input.observations), true);
+        return [interpretation];
+      }
+    },
+    verifyInterpretation: verifier,
+    clock: () => new Date(at),
+    makeId: (() => { let i = 0; return () => "freeze-" + (++i); })()
+  });
+  const result = await pipeline.run(request);
+  assert.equal(result.ok, true);
+  assert.equal(receivedFrozenObservation, true);
+});
+
+test("vision provider cannot forward raw image fields to the interpreter", async () => {
+  let interpreterCalled = false;
+  const pipeline = createChiroPhase11Pipeline({
+    visionProvider: {
+      async extractObservations() {
+        return [{ ...observation, raw_image_bytes: "forbidden" }];
+      }
+    },
+    interpretationProvider: {
+      async proposeInterpretations() {
+        interpreterCalled = true;
+        return [interpretation];
+      }
+    },
+    clock: () => new Date(at),
+    makeId: (() => { let i = 0; return () => "raw-block-" + (++i); })()
+  });
+  const result = await pipeline.run(request);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "CHIRO_VISION_RESULT_INVALID");
+  assert.equal(interpreterCalled, false);
+});
