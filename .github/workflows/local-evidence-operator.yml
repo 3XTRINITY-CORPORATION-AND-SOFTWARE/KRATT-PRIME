@@ -1,0 +1,50 @@
+name: KRATT Local Evidence Operator
+
+on:
+  push:
+    branches: [feature/local-evidence-operator-api-v1]
+    paths:
+      - "packages/kratt-core/src/prime-store.mjs"
+      - "packages/kratt-core/test/prime-store.test.mjs"
+      - "packages/kratt-runtime/src/cli.mjs"
+      - "packages/kratt-runtime/src/config.mjs"
+      - "packages/kratt-runtime/src/server.mjs"
+      - "packages/kratt-runtime/test/runtime.test.mjs"
+      - "packages/kratt-runtime/test/operator-cli.test.mjs"
+      - ".env.example"
+      - "docs/runtime/LOCAL-EVIDENCE-OPERATOR-V1.md"
+      - "docs/runtime/KRATT-PRIME-EVIDENCE-RUNTIME-STAGES-V1.md"
+      - ".github/workflows/local-evidence-operator.yml"
+  pull_request:
+    branches: [feature/persisted-evidence-reflection-v1]
+    paths:
+      - "packages/kratt-core/src/prime-store.mjs"
+      - "packages/kratt-core/test/prime-store.test.mjs"
+      - "packages/kratt-runtime/src/cli.mjs"
+      - "packages/kratt-runtime/src/config.mjs"
+      - "packages/kratt-runtime/src/server.mjs"
+      - "packages/kratt-runtime/test/runtime.test.mjs"
+      - "packages/kratt-runtime/test/operator-cli.test.mjs"
+      - ".env.example"
+      - "docs/runtime/LOCAL-EVIDENCE-OPERATOR-V1.md"
+      - "docs/runtime/KRATT-PRIME-EVIDENCE-RUNTIME-STAGES-V1.md"
+      - ".github/workflows/local-evidence-operator.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  local-evidence-operator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
