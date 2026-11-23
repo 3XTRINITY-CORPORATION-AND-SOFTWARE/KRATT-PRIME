@@ -81,3 +81,23 @@ npm run build
 \`\`\`
 
 These commands must be run in the repository's supported Node 22 environment.
+
+
+## Phase 11 provider pipeline
+
+\`src/chiro-phase11-pipeline.mjs\` implements the Phase 11
+\`semanticPipeline.run(input)\` contract. Pass its result as the
+\`semanticPipeline\` option to \`createPhase11Runtime\`.
+
+AURA supplies interchangeable adapters:
+
+- \`visionProvider.extractObservations({ assetRef, sessionId, processingMode, privacy, correlationId })\`
+- \`interpretationProvider.proposeInterpretations({ sessionId, domain, observations, correlationId })\`
+
+A trusted synchronous \`verifyInterpretation\` function is injected separately.
+The vision provider receives an opaque asset reference, not image bytes in the
+PIP request. The pipeline checks explicit consent before either provider runs.
+It emits metadata-only CHIRO events and uses the existing Saga state machine.
+
+This is a provider-neutral integration seam; no OpenAI, xAI, or other external
+provider credentials or SDKs are embedded in the core package.
