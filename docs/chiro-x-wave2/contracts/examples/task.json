@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "task.example-001",
+  "run_id": "run.example-001",
+  "task_type": "pip.analysis",
+  "capability_id": "pip.analyze.local",
+  "input": {
+    "observation_ids": ["observation.example-001"]
+  },
+  "depends_on": [],
+  "idempotency_key": "request.example-001",
+  "requested_by": "user.example-001",
+  "created_at": "2026-11-23T12:00:00Z",
+  "deadline_at": "2026-11-23T12:01:00Z",
+  "budget": {
+    "schema_version": "1.0.0",
+    "max_attempts": 2,
+    "timeout_ms": 30000,
+    "max_input_bytes": 100000,
+    "max_output_bytes": 10000,
+    "max_tokens": 1000,
+    "max_cost_microusd": 0
+  },
+  "privacy": {
+    "schema_version": "1.0.0",
+    "processing_mode": "LOCAL_ONLY",
+    "consent_record_id": null,
+    "retain_input": false,
+    "retention_until": null,
+    "allow_training": false,
+    "redaction_required": true
+  }
+}
