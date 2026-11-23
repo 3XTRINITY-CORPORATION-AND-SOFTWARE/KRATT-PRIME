@@ -1,7 +1,7 @@
 # Workstream 1 — KRATT runtime and shared contracts
 
 - Assigned branch: wave2/agent-1-runtime.
-- Starting SHA: fill with the actual integration baseline branch point before implementation; record the frozen-contract commit SHA after validation.
+- Starting SHA: 5ea6a19, the integration commit containing the baseline, targeted dependency fix, and CI trigger repair. Record the frozen-contract commit SHA after validation.
 - Owned paths: packages/kratt-core/src/wave2-contracts.mjs; packages/kratt-core/src/agent-registry.mjs; packages/kratt-core/src/wave2-runtime.mjs; packages/kratt-core/test/wave2-contracts.test.mjs; packages/kratt-core/test/wave2-runtime.test.mjs; docs/chiro-x-wave2/contracts/**; this manifest.
 - Read-only paths: existing contracts.mjs, policy.mjs, trusted-runtime.mjs, phase11 files, CHIRO/PIP files, saga.mjs, outbox files, observability files, and all other workstream-owned paths.
 - Forbidden paths: package manifests/lockfiles, global CI/workflows, migrations, global authorization policy, main, CHIRO-X base, integration branch, and all other agent branches.
