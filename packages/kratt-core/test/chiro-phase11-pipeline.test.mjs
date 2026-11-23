@@ -124,7 +124,7 @@ test("Phase 11 pipeline keeps outputs unverified when independent verifier is ab
   assert.equal(result.report.reviews[0].state, "UNVERIFIED");
 });
 
-test("Phase 11 pipeline fails closed when provider output violates the PIP contract", async () => {
+test("Phase 11 pipeline rejects invalid vision output before interpretation", async () => {
   const pipeline = createChiroPhase11Pipeline({
     visionProvider: { async extractObservations() { return [{ ...observation, extraction_confidence: 10 }]; } },
     interpretationProvider: { async proposeInterpretations() { return [interpretation]; } },
@@ -133,7 +133,7 @@ test("Phase 11 pipeline fails closed when provider output violates the PIP contr
   });
   const result = await pipeline.run(request);
   assert.equal(result.ok, false);
-  assert.equal(result.reason, "CHIRO_PIP_VALIDATION_FAILED");
+  assert.equal(result.reason, "CHIRO_VISION_RESULT_INVALID");
 });
 
 
