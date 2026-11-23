@@ -125,7 +125,7 @@ export function validatePIPObservation(input) {
   if (!exactKeys(p, ["source_type", "source_id", "observed_at"], ["content_digest"]) ||
       !PIP_PROVENANCE_TYPES.includes(p.source_type) ||
       !validId(p.source_id) || !validTimestamp(p.observed_at) ||
-      (p.content_digest !== undefined && !DIGEST.test(p.content_digest)))
+      (p.content_digest !== undefined && (typeof p.content_digest !== "string" || !DIGEST.test(p.content_digest))))
     errors.push("PIP_OBSERVATION_PROVENANCE_INVALID");
 
   if (input.region !== undefined) {
@@ -158,7 +158,7 @@ export function validatePIPInterpretation(input) {
     errors.push("PIP_INTERPRETATION_OBSERVATIONS_INVALID");
   if (!validIdArray(input.source_refs, 64))
     errors.push("PIP_SOURCE_REFERENCES_INVALID");
-  if (input.kind === "SOURCE_CLAIM" && input.source_refs.length === 0)
+  if (input.kind === "SOURCE_CLAIM" && Array.isArray(input.source_refs) && input.source_refs.length === 0)
     errors.push("PIP_SOURCE_CLAIM_REQUIRES_REFERENCES");
   if (!Array.isArray(input.alternatives) || input.alternatives.length > 16 ||
       input.alternatives.some(value => !validText(value, 1000)))
