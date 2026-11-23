@@ -138,7 +138,7 @@ export function evaluateChiroBundle(bundle, { verifyInterpretation } = {}) {
 
     if (!result || !PIP_VALIDATION_STATES.includes(result.state) ||
         !Array.isArray(result.verifiedSourceRefs) ||
-        result.verifiedSourceRefs.some(ref => typeof ref !== "string")) {
+        result.verifiedSourceRefs.some(ref => typeof ref !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/.test(ref))) {
       return Object.freeze({
         interpretation_id: interpretation.id,
         state: "BLOCKED",
@@ -173,8 +173,8 @@ export function evaluateChiroBundle(bundle, { verifyInterpretation } = {}) {
   });
 
   const divergence = findSurfaceDivergence(value.interpretations);
-  const requiresHumanReview = reviews.some(item => item.state !== "SUPPORTED") || divergence.length > 0;
-  const status = requiresHumanReview ? "REVIEW_REQUIRED" : "SOURCE_CLAIMS_SUPPORTED";
+  const requiresHumanReview = value.interpretations.length === 0 || reviews.some(item => item.state !== "SUPPORTED") || divergence.length > 0;
+  const status = value.interpretations.length === 0 ? "NO_INTERPRETATIONS" : requiresHumanReview ? "REVIEW_REQUIRED" : "SOURCE_CLAIMS_SUPPORTED";
 
   return Object.freeze({
     ok: true,
@@ -193,8 +193,8 @@ export function evaluateChiroBundle(bundle, { verifyInterpretation } = {}) {
 
 export function createChiroEvent(input) {
   const checked = validatePIPEvent({
-    schema_version: PIP_SCHEMA_VERSION,
-    ...input
+    ...input,
+    schema_version: PIP_SCHEMA_VERSION
   });
   if (!checked.ok) return checked;
   return { ok: true, value: checked.value };
