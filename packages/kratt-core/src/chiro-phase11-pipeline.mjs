@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createChiroEvent, createChiroWorkflow, evaluateChiroBundle, transitionChiroWorkflow } from "./chiro-x.mjs";
-import { PIP_SCHEMA_VERSION, validatePIPPrivacy } from "./pip-contracts.mjs";
+import { PIP_SCHEMA_VERSION, validatePIPBundle, validatePIPPrivacy } from "./pip-contracts.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/;
 const REQUEST_KEYS = ["requestId", "sessionId", "assetRef", "privacy"];
@@ -17,7 +17,8 @@ function validateRequest(input) {
   const allowed = new Set([...REQUEST_KEYS, ...OPTIONAL_REQUEST_KEYS]);
   const keys = Reflect.ownKeys(input);
   if (keys.some(key => typeof key !== "string" || !allowed.has(key)) ||
-      REQUEST_KEYS.some(key => !Object.hasOwn(input, key))) {
+      REQUEST_KEYS.some(key => !Object.hasOwn(input, key)) ||
+      keys.some(key => { const descriptor = Object.getOwnPropertyDescriptor(input, key); return !descriptor || !("value" in descriptor) || descriptor.get || descriptor.set; })) {
     return { ok: false, reason: "CHIRO_REQUEST_SHAPE_INVALID" };
   }
   if (![input.requestId, input.sessionId, input.assetRef].every(value =>
@@ -123,6 +124,24 @@ export function createChiroPhase11Pipeline({
     if (!Array.isArray(observations)) {
       return Object.freeze({ ok: false, status: "FAILED", reason: "CHIRO_VISION_RESULT_INVALID", workflow: { id: saga.id, state: saga.state } });
     }
+
+    // Validate and freeze observations before exposing them to a second model.
+    // This prevents provider output from smuggling raw assets or mutating evidence.
+    const observedBundle = validatePIPBundle({
+      schema_version: PIP_SCHEMA_VERSION,
+      session_id: request.sessionId,
+      created_at: readTime(clock),
+      privacy: request.privacy,
+      observations,
+      interpretations: []
+    });
+    if (!observedBundle.ok) {
+      return Object.freeze({
+        ok: false, status: "FAILED", reason: "CHIRO_VISION_RESULT_INVALID",
+        errors: observedBundle.errors, workflow: { id: saga.id, state: saga.state }
+      });
+    }
+    observations = observedBundle.value.observations;
 
     const observationStep = transitionChiroWorkflow(saga, "RUNNING", {
       id: makeId(), at: readTime(clock), kind: "observation_completed",
