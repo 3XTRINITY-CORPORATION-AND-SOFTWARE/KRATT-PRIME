@@ -1,7 +1,7 @@
 # Workstream 3 — PIP evidence and contradictions
 
 - Assigned branch: wave2/agent-3-evidence.
-- Starting SHA: fill with the actual frozen-contract integration SHA before implementation.
+- Branch starting SHA: 8bb81626b0b273761a2fa55b0d253b76e078eb9f (includes the shared frozen-contract commit 1e9df9a728bed86bf9a578f301bcd51635ea2a78).
 - Owned paths: packages/kratt-core/src/chiro-evidence-adapter.mjs; packages/kratt-core/test/chiro-evidence-adapter.test.mjs; docs/chiro-x-wave2/evidence/**; this manifest.
 - Read-only paths: frozen contracts, pip-contracts.mjs, motlemine-engine.mjs, meridian-truth-chain.mjs, semantic-evidence-bridge.mjs, contracts.mjs, and all other workstream-owned paths.
 - Forbidden paths: modifying existing evidence engines without coordinator-assigned ownership, shared contracts, global policy, lockfiles, workflows, migrations, main, base, integration branch, and other agent branches.
