@@ -1,0 +1,42 @@
+name: KRATT Persisted Evidence Reflection
+
+on:
+  push:
+    branches: [feature/persisted-evidence-reflection-v1]
+    paths:
+      - "packages/kratt-runtime/src/evidence-kernel.mjs"
+      - "packages/kratt-runtime/src/persisted-evidence-reflection.mjs"
+      - "packages/kratt-runtime/src/durable-evidence.mjs"
+      - "packages/kratt-runtime/test/evidence-kernel.test.mjs"
+      - "packages/kratt-runtime/test/persisted-evidence-reflection.test.mjs"
+      - "docs/runtime/KRATT-PRIME-EVIDENCE-RUNTIME-STAGES-V1.md"
+      - ".github/workflows/persisted-evidence-reflection.yml"
+  pull_request:
+    branches: [feature/repository-index-eck-durable-v1]
+    paths:
+      - "packages/kratt-runtime/src/evidence-kernel.mjs"
+      - "packages/kratt-runtime/src/persisted-evidence-reflection.mjs"
+      - "packages/kratt-runtime/src/durable-evidence.mjs"
+      - "packages/kratt-runtime/test/evidence-kernel.test.mjs"
+      - "packages/kratt-runtime/test/persisted-evidence-reflection.test.mjs"
+      - "docs/runtime/KRATT-PRIME-EVIDENCE-RUNTIME-STAGES-V1.md"
+      - ".github/workflows/persisted-evidence-reflection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  persisted-evidence-reflection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
