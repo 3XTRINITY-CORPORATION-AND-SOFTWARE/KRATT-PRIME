@@ -1,7 +1,7 @@
 # Workstream 2 — AURA multimodal runtime
 
 - Assigned branch: wave2/agent-2-aura.
-- Starting SHA: fill with the actual frozen-contract integration SHA before implementation.
+- Branch starting SHA: 8bb81626b0b273761a2fa55b0d253b76e078eb9f (includes the shared frozen-contract commit 1e9df9a728bed86bf9a578f301bcd51635ea2a78).
 - Owned paths: packages/kratt-orchestrator/src/aura-multimodal-runtime.mjs; packages/kratt-orchestrator/test/aura-multimodal-runtime.test.mjs; docs/chiro-x-wave2/providers/**; this manifest.
 - Read-only paths: frozen contracts, chiro-phase11-pipeline.mjs, PIP validators, policy/authorization modules, existing provider connectors, and all other workstream-owned paths.
 - Forbidden paths: shared contracts, AgentRegistry, global policy, package manifests/lockfiles, CI/workflows, migrations, main, base, integration branch, and other agent branches.
